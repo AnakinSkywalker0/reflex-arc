@@ -1,158 +1,81 @@
-# Prototype 10 — one screen, one seam
+# Prototype 10b — the base the team builds on
 
-Prototype 9 scaled down until there is exactly one thing to watch: the planner decides, the
-real rover drives, and `plan.txt` is the only thing that crosses between them. Every leg the
-planner commits to appears on disk as directions, the rover executes them and stops, and only
-then does the planner get to think again. The pause is the demo.
+10b is 10a with three things added: settings you change inside the app, a scratchpad you can watch
+fill up, and instructions that get a teammate's Linux machine running. Its job is to make the
+multi-sol tests cheap enough for the team to run, because no prototype has yet had a model play
+past sol 1. The UI team also works from here.
 
-Inherited from prototype 9 whole: the scratchpad and the memory (`notes.py`), the skills, the
-chat pane, the tape.
+Everything not listed below is inherited unchanged and described in
+[`../prototype10a/DESIGN.md`](../prototype10a/DESIGN.md).
 
-## The seam
+## Settings inside the app
 
-`plan.txt` holds one of `N`, `E`, `S`, `W` per line and nothing else. No header, no comments,
-no coordinates, no leg structure.
+There are 98 module constants today: 56 in `settings.py` and 42 in `config.py`. They are read at
+import time as `S.X` and `C.X`. The work is making the tunable ones changeable while the app runs.
+Palette and layout constants stay as code.
 
-Absolute rather than rover-relative, decided after tracing a 5×5 example by hand. Relative
-directions make every turn a function of a heading the simulation never measured — `nav.py`
-admits as much today — and with a pause at every leg boundary that assumed heading is exactly
-where the sim's belief and the robot's reality drift apart. Absolute removes the quantity
-rather than correcting it. It is also shorter: the worked example came to 1, 5 and 4 tokens a
-leg against 1, 8 and 7 relative.
+**Every tunable goes in one registry.** Each entry has a name, a type, a range or a list of choices,
+a default, a one-line description and a **tier**:
 
-The cycle, per leg:
+| tier | applies | examples |
+|---|---|---|
+| **now** | on the next frame | animation speeds, time scale, showing the model's thinking |
+| **next sol** | at the next nightfall | the model, steps per sol, storm settings, mission length |
+| **relaunch** | after a restart, and the app says so | the arena (30×30 or 50×50), tile size, window size |
 
-1. `goto` plans over the map the rover knows, fog assumed drivable
-2. the simulation drives the plan until it arrives or runs into rock
-3. **the prefix that actually worked** is written to `plan.txt`
-4. the real rover replays it and stops
-5. the file is wiped; if the leg ended on rock, replan and go again
+- **Defaults stay in code.** A person's changes live in a local file that git ignores, so a pull
+  never overwrites someone's settings.
+- **The settings screen is deliberately plain.** The UI team restyles it from the registry; they
+  do not rebuild it.
+- **The model is picked from what Ollama has installed.** Cloud models go through the machine's own
+  Ollama sign-in, so there is no key to enter. Gemini keys are deferred.
+- **Mission length is a new setting:** the number of sols after which the run ends and is kept. It
+  is what turns a multi-sol test into one launch.
+- **Every run's log records the settings in force, and replay uses the log's settings,** never the
+  current ones. Otherwise changing a setting silently breaks every kept run.
+- **The 29 Sept recording values become a preset:** TILE 30, HUD_H 150, DAY_STEPS 500, MOVE_HOPS 20,
+  FREE_HOPS 10, CHAT_W 990, animation at half speed. 10b inherits them as its current values. The
+  design default for DAY_STEPS is 150, the value the 40/15/60 objective costs were balanced for.
+  Which set is the default has not been decided.
 
-The robot only ever receives moves the simulation has already proved, so it cannot be sent
-into an outcrop. That is what step 3 buys, and it is why the file holds a record rather than a
-hypothesis.
+## The scratchpad on screen
 
-The model is unaffected by any of this. One `goto` returns one result however many legs it
-took. `NAV_REPLANS = 5` now bounds hardware round-trips at six per call. The full journey,
-detours included, lives in the tape — never in `plan.txt`, which holds the current leg only.
+A collapsible panel showing today's list as checkboxes. Items appear as the model adds them and
+tick as it strikes them. Under the list go the note that crosses the night and the operator's
+standing orders. One key toggles it. It should be the simplest thing that shows the list live, and
+the UI team makes it look good later.
 
-`BACKWARD` stops existing, and with it the turn arithmetic in `route_actions`, the heading in
-the leg tuple, `--heading` in `plan_txt.py`, and the contract note about a rover that cannot
-reverse. `HEADING_NAMES` is already indexed by the same `DIRS` order the old turn maths used,
-so a step is `HEADING_NAMES[DIRS.index(step)]` and nothing else.
+## Running it
 
-## The world
+A README with setup for Linux, tested on this machine, and for Windows, written but untested until
+someone runs it there. It covers Python and the venv, `requirements.txt`, Ollama, `gemma4:e4b`
+pulled locally, and `ollama signin` for the cloud model.
 
-**30×30, and the rover can see again.** Ingenuity is cut. Prototype 8 blinded the rover on the
-grounds that the flyer was the only eye worth having; remove the flyer from that and nothing
-can see at all, and the geology question below becomes unanswerable. So driving reveals once
-more, at `VISION_RADIUS = 2` — a guess sized to the smaller arena, not a swept value.
+## Two tests that already fail
 
-New geology: formations of six and eight cells, and one C of twelve opening east as the
-unique largest. Two clear cells between formations so the flood fill and the eye agree on
-where one ends. The C is what brings back the one effect the 30 used to lack — crossing its
-mouth is expensive, so `goto` returns BLOCKED for a reason other than being driven at a wall.
+Both fail identically in 10a, so they predate 10b:
+- `test_sight.py` dies with `KeyError: '1'`. The objective tiles `1`, `2` and `3` are missing from
+  the word table, the same cause that broke prototype 6.
+- In `test_skills.py`, the group "each gainless drive says so on its own" fails.
 
-`DAY_STEPS = 150`, and objective costs stay at 40/15/60. A crossing is about 30, so the
-dearest objective plus getting there is 90: one objective a sol, with room left to explore.
-Difficulty is tuned here.
+## For the team, once this lands: the multi-sol tests
 
-**One dust storm a sol at `STORM_RADIUS = 2`.** It already behaves the way we want — an
-impassable overlay reseeded each day, visible from the moment it exists, and distinct from
-rock. It must stay distinct: `count` reports rock formations, and a storm counted as one
-breaks the largest-formation question. `STORM_TRIES` and `STORM_MAX_CUTOFF` are dead weight
-at this size.
+- **The first question is whether anything survives the night as designed.** That covers the map,
+  the note, the orders and the finished objectives. `world.next_day` says it keeps them, and no
+  model run has ever checked.
+- **Run 3 sols at 150 steps,** so something has to be put off. Read the note it leaves itself each
+  night.
+- **`gemma4:e4b` is fine for checking the machinery.** Anything that becomes a conclusion gets
+  repeated on `gemma4:31b-cloud`. In p2, e4b read cells right 44% of the time; see
+  [`../docs/findings.md`](../docs/findings.md).
+- **Report each result with its n.** The same script has given 31, 14 and 32 calls on one build.
 
-## What is written down
+What memory and the scratchpad should become is decided from those runs, not before them.
 
-Three stores, and they differ by who holds the pen.
+## Not in 10b
 
-| store | written by | lifetime | example |
-|---|---|---|---|
-| **orders** | the operator, at nightfall | until replaced | *finish objective 3 today* |
-| **scratchpad** | the model, each morning | wiped at nightfall | *today: objectives 1 and 2* |
-| **memory** | the model, before nightfall | crosses the night | *objective 3 was missed, do it today* |
-
-Orders are new and need their own store rather than a corner of an existing one. `next_day`
-clears the message log and the todos, so anything typed at nightfall is gone by morning unless
-it lives somewhere that survives — and the only such place today is `memory`, which `remember`
-replaces wholesale (`n.memory = text`). Put orders there and the model deletes mission control
-on its next call. So: written only by the operator, read-only to her, riding in the view on
-every request the way the other two already do.
-
-The map already crosses the night, so a survey sol makes the **map** valuable. What makes
-*memory* valuable is the deferral — the sixty-step objective left undone and the line that
-says do it first tomorrow — which a 150-step day produces on its own.
-
-## Nightfall
-
-The day ends, the operator gives the rover its work, and the operator presses `N`. Most of
-this exists: the operator can already type at the model and it lands in the pane as `OPERATOR`,
-the prompt already tells her a human operator gives her work, and the rollover is already a
-keypress. What is new is that orders may **place an objective on the map** — a cell, a
-priority, a cost — and not only say things in words.
-
-**The guard is built.** `World.place_objective` refuses a cell with no approach the
-rover can reach, flooding from the spawn over the true grid rather than the fogged one —
-the operator can see the whole arena, and refusing placements into unmapped ground would
-refuse the one sol worth running. The storm is not consulted because it cannot bury one:
-`_weather` keeps it clear of every live objective, placed ones included.
-
-A run would typically go:
-
-| sol | orders |
-|-----|--------|
-| 1 | survey only — find and report the largest formation |
-| 2 | one objective placed |
-| 3 | survey only |
-| 4 | one objective placed |
-| 5 | one objective placed in ground the rover has not been to |
-
-That is a shape to type, not machinery to build. Sol 1 needs a stated job or it is a blank day
-and `_stuck` fires; the geology question is that job, it is only answerable by driving, and it
-is the natural first thing to write in the scratchpad.
-
-## Live and replay
-
-Two modes, because a demo and an experiment want opposite things.
-
-**Live** — the model decides. Might be brilliant, might flop.
-
-**Replay** — a kept tape re-issues the recorded tool calls and the model is never asked. The
-tape already holds enough: `chat.jsonl` keeps every prompt and reply in full, and `game.jsonl`
-keeps every world event. With no model in the loop and everything else deterministic, the same
-`plan.txt` gets written and the rover drives the same route.
-
-So the script for a scripted run is a run that already happened. Go live until a sol comes out
-well, keep it, and that directory is the demo — operator orders and objective placements
-included, since those are lines on the tape like anything else.
-
-**Replay assumes the hardware obeys.** Live, the sim leads and the robot follows, so a robot
-that stops early feeds back into a replan. In replay there is no planner to react: a slipped
-wheel puts the rover somewhere the tape does not know about and every leg after that is wrong.
-Replay still reads the robot's report at each pause and halts loudly on a mismatch.
-
-### The determinism ledger
-
-| | |
-|---|---|
-| **arena** | authored strings |
-| **storm** | seeded `f"{name}:{w}x{h}:sol{day}"`, and Python seeds from the bytes via SHA-512, so `PYTHONHASHSEED` cannot reach it |
-| **the day** | counted in steps, not wall-clock, so it does not depend on machine speed |
-| **the view** | `_count` and `_runs` sort before emitting, so no set-iteration order reaches the model |
-| **Ollama** | only `num_ctx` and `temperature` are sent — **no `seed`**. One line. |
-| **animation** | wall-clock, so pacing varies between runs. Affects a video, not an outcome. |
-| **the model** | **not controllable.** `MODEL_TEMP = 0.0` is greedy and usually reproduces on a fixed local build, but inference batches requests and floating-point addition is not associative, so identical prompts can give different logits depending on what else was in the batch. Hosted models are worse. One differing token cascades through the sol. |
-
-The last row is why replay exists. Everything above it can be pinned; the model cannot, so for
-anything that has to come out the same twice, take it out of the loop.
-
-## Open
-
-- **`VISION_RADIUS = 2` is untested.** Set it, run a sol, look.
-- **Two objectives may now share a priority.** The operator can place a second `high`, and
-  the view tells them apart by cell and cost alone. Untried on a model.
-- **Turns are free in the budget and slow in the room.** The day is charged one step per tile
-  driven, so a turn-heavy route costs the same as a straight one in the sim and considerably
-  more on hardware. Already true in prototype 9; it starts to matter once a physical rover is
-  in the loop.
+- **The rover-bridge merge.** It is deferred until Ishan reviews it. The branch was written against
+  `prototype10/`, so its files will need to land in 10b by hand.
+- **Gemini keys, and a test on Windows.** Both are deferred.
+- **Full autonomy:** orders given once, several sols run unattended, then a report. That is
+  prototype 11.
