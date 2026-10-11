@@ -175,7 +175,7 @@ def draw_world(surf, w, f, reel=None):
     for rect, ch, lit, cell in things:
         if ch == "H":
             _pad(surf, rect, lit)
-        elif ch in W.GLYPHS:
+        elif ch and ch in W.GLYPHS:       # a mark rides here with no tile of its own
             _objective(surf, rect, ch, lit)
         if cell in a.marks:
             _x_mark(surf, rect)
@@ -444,10 +444,11 @@ def draw_quit(surf, w, f, run, mission_over=False):
     """The one question asked at the end. Nothing is buffered waiting for the answer --
     the logs are already on disk and this only decides what happens to them."""
     box = _panel(surf, f, "MISSION OVER" if mission_over else "END OF SESSION",
-                 f"sol {w.day}, {w.steps} steps driven, {w.elapsed:.0f}s elapsed", 4)
+                 f"sol {w.day}, {w.steps} steps driven, {w.elapsed:.0f}s elapsed", 5)
     where = run.dir.name if run else "nothing recorded"
-    rows = [(f"  K   keep the logs      runs/{run.stamp if run else '--'}/", C.GOOD),
-            ("  D   discard them        nothing is left behind", C.BAD),
+    rows = [(f"  K   keep the run       runs/{run.stamp if run else '--'}/", C.GOOD),
+            (f"      resume it later    --resume runs/{run.stamp if run else '--'}", C.MUTED),
+            ("  D   discard it          nothing is left behind", C.BAD),
             ("  ESC cancel, keep playing", C.MUTED)]
     for i, (text, col) in enumerate(rows):
         surf.blit(f.hud.render(text, True, col), (box.left + 40, box.top + 76 + i * 24))

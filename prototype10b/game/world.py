@@ -278,7 +278,9 @@ class World:
     this file still does no I/O.
     """
 
-    def __init__(self, recorder=None):
+    def __init__(self, recorder=None, carried=None):
+        """`carried` is a `carry()` from an earlier run: the expedition wakes on the sol
+        after it, exactly as `next_day` would have woken it."""
         self.here = Area(C.ARENA_NAME, C.ARENA, C.OBJECTIVES)
         self.pos = C.SPAWN
         self.day = 1
@@ -307,6 +309,10 @@ class World:
         # Her own writing. The list dies at nightfall and the memory does not, which is
         # the only difference between the two stores; `notes.py` says why.
         self.notes = notes.Notes()
+        if carried:
+            self._restore(carried)
+            self._morning()
+            return
         self._weather()
         # The landing site is visible on arrival. You can see where you came down.
         self.here.reveal(*self.pos, r=S.BASE_REVEAL)
@@ -407,6 +413,11 @@ class World:
                              "seconds": round(self.elapsed, 1)})
         self.record("day_close", steps=self.steps, seconds=round(self.elapsed, 1))
         self.day += 1
+        self._morning()
+
+    def _morning(self):
+        """Everything the night resets. Shared by `next_day` and a resumed expedition,
+        so the two cannot wake differently."""
         self.day_over = False
         self.time_left = float(S.DAY_SECONDS)
         self.steps = 0
@@ -420,6 +431,44 @@ class World:
         self._weather()         # yesterday's storm has blown out; today gets its own
         self._arrive()
         self.record("day_open", at=self.pos, steps_left=self.steps_left)
+
+    # --- across sessions -------------------------------------------------
+    def carry(self):
+        """What the night keeps, as JSON: enough to wake on the next sol in a new session.
+
+        Quitting mid-sol counts the sol as played. Position, the list, the storm and the
+        step count are not here because the morning resets all four anyway.
+        """
+        a, sv = self.here, self.survey
+        cells = lambda cs: sorted([x, y] for x, y in cs)
+        return {"version": 1, "arena": str(a.w), "day": self.day,
+                "seen": cells(a.seen), "visited": cells(a.visited), "marks": cells(a.marks),
+                "objectives": [[*o.cell, o.glyph, o.priority, o.cost]
+                               for o in a.objectives.values()],
+                "survey": {"owner": sorted([x, y, f] for (x, y), f in sv.owner.items()),
+                           "size": sorted([f, n] for f, n in sv.size.items()),
+                           "merges": [list(m) for m in sv.merges], "next": sv._next},
+                "memory": self.notes.memory, "orders": self.notes.orders,
+                "history": self.history + [{"day": self.day, "steps": self.steps,
+                                            "seconds": round(self.elapsed, 1)}]}
+
+    def _restore(self, c):
+        """The inverse of `carry`, leaving the world at the night after `c["day"]`."""
+        a, sv = self.here, self.survey
+        if c.get("arena") != str(a.w):
+            raise ValueError(f"saved on the {c.get('arena')}, and the {a.w} is loaded")
+        a.seen = {tuple(p) for p in c["seen"]}
+        a.visited = {tuple(p) for p in c["visited"]}
+        a.marks = {tuple(p) for p in c["marks"]}
+        a.objectives = {(x, y): Objective((x, y), g, pr, cost)
+                        for x, y, g, pr, cost in c["objectives"]}
+        sv.owner = {(x, y): f for x, y, f in c["survey"]["owner"]}
+        sv.size = {f: n for f, n in c["survey"]["size"]}
+        sv.merges = [tuple(m) for m in c["survey"]["merges"]]
+        sv._next = c["survey"]["next"]
+        self.notes.memory, self.notes.orders = c["memory"], c["orders"]
+        self.history = list(c["history"])
+        self.day = c["day"] + 1
 
     def _weather(self):
         """Today's storm. One a sol, lasting the sol, and never over the pad, the landing

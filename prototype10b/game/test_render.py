@@ -83,6 +83,15 @@ def test_no_display_leaves_the_shipped_numbers_alone():
         pygame.display.get_desktop_sizes = real
 
 
+def test_a_marked_cell_draws():
+    """X puts a mark on the arena; drawing one used to crash the game on the next frame."""
+    from world import World
+    pygame.font.init()
+    w = World()
+    w.toggle_mark()
+    render.draw_world(pygame.Surface(render.game_size()), w, render.Fonts())
+
+
 if __name__ == "__main__":
     for name, fn in sorted(globals().items()):
         if name.startswith("test_"):

@@ -60,7 +60,9 @@ DIRS = {pygame.K_w: (0, -1), pygame.K_s: (0, 1), pygame.K_a: (-1, 0), pygame.K_d
 
 
 def read_flags(argv, prefs):
-    """Puts every setting in force before anything reads one. Returns (args, script).
+    """Puts every setting in force before anything reads one.
+
+    Returns (args, script, carried): `carried` is the night a resumed run wakes from.
 
     The order is the precedence: the code's defaults, then the person's saved settings,
     then flags for this launch only, then -- on a replay -- the kept run's own values,
@@ -85,7 +87,11 @@ def read_flags(argv, prefs):
     p.add_argument("--sols", type=int, help="sols in the mission; 0 is no limit")
     p.add_argument("--replay", metavar="RUN_DIR",
                    help="re-issue a kept run's calls with no model in the loop")
+    p.add_argument("--resume", metavar="RUN_DIR",
+                   help="carry on a kept run's expedition from the sol after it stopped")
     args = p.parse_args(argv)
+    if args.replay and args.resume:
+        p.error("--replay and --resume are two different runs; pick one")
 
     prefs.apply_all()
     for w in prefs.warnings:
@@ -104,18 +110,27 @@ def read_flags(argv, prefs):
     # calls in it should say so at the prompt, not behind a window that then closes.
     script = replay.load(pathlib.Path(args.replay)) if args.replay else None
     if script:
-        script.use_settings(1)
+        script.use_settings(script.first_sol)
+    carried = script.start if script else None
+    if args.resume:
+        try:
+            carried = logs.load_night(pathlib.Path(args.resume))
+        except ValueError as e:
+            p.error(str(e))
+    if carried:
+        # The map belongs to the arena it was drawn on, whatever is saved or flagged.
+        registry.apply({"APP_ARENA": carried["arena"]})
 
     # Before anything reads `config` -- the window is sized off it and so is the world.
     C.use(C.APP_ARENA)
     # Last: the prompt is built from the arena, the map format and the turn caps.
     prompts.use(args.prompt)
-    return args, script
+    return args, script, carried
 
 
 def main():
     prefs = registry.Prefs()
-    args, script = read_flags(sys.argv[1:], prefs)
+    args, script, carried = read_flags(sys.argv[1:], prefs)
     pygame.init()
 
     def title():
@@ -153,8 +168,12 @@ def main():
         run.record("settings", sol=sol, values=registry.snapshot(),
                    prompt=hashlib.sha256(prompts.SYSTEM.encode()).hexdigest()[:12])
 
-    log_settings(1)
-    w = World(recorder=run.record)
+    w = World(recorder=run.record, carried=carried)
+    if args.resume:
+        run.save_start(carried, pathlib.Path(args.resume).resolve().name)
+    elif script and script.start:
+        run.save_start(script.start, pathlib.Path(args.replay).resolve().name)
+    log_settings(w.day)
     nav.clear_plan(w)   # this session's route file starts empty, never yesterday's
     tape = chat.Tape(run.chat_path)
 
@@ -206,6 +225,8 @@ def main():
     def leave(keep):
         run.record("quit", kept=keep, day=w.day, steps=w.steps,
                    seconds=round(w.elapsed, 1))
+        if keep:
+            run.save_night(w)
         tape.close()
         run.keep() if keep else run.discard()
         pygame.quit()
@@ -333,6 +354,7 @@ def main():
             changed = prefs.nightfall()
             notes = [f"{k} {registry.show(v)}" for k, v in changed.items()]
         prompts.use(args.prompt)
+        run.save_night(w)     # a crash tomorrow still resumes from tonight
         w.next_day()
         log_settings(w.day)
         title()

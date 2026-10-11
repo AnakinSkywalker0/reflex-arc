@@ -99,6 +99,10 @@ class Script:
         # The settings each sol was played under. Replay puts these in force rather
         # than the viewer's own, or a changed default would break every kept run.
         self.settings = registry.from_log(game_rows)
+        # A resumed run woke from a saved night, and its replay has to wake there too.
+        start = run_dir / "start.json"
+        self.start = json.loads(start.read_text(encoding="utf-8")) if start.exists() else None
+        self.first_sol = self.start["day"] + 1 if self.start else 1
 
         self.i = 0
 

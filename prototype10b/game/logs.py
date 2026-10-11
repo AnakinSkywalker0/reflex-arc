@@ -13,14 +13,29 @@ A leftover `pending-` directory is a run nobody answered for, not an error.
                  holds only the newest and the tape is the only way to read a run back.
     game.jsonl   what happened to the world, fed by `World.recorder` so `world.py` does
                  no I/O of its own.
+    night.json   what the last night kept, so `--resume` can wake on the next sol.
+    start.json   on a resumed run only: the night it woke from, for replay.
 
 No pygame in here, so the tests can drive the whole thing.
 """
 
 import json
+import os
 import shutil
 import time
 from datetime import datetime
+
+
+def load_night(run_dir):
+    """The `night.json` of a run directory, or ValueError saying why there is none."""
+    path = run_dir / "night.json"
+    if not path.exists():
+        # A resumed run that crashed before its first nightfall: wake where it woke.
+        path = run_dir / "start.json"
+    if not path.exists():
+        raise ValueError(f"{run_dir} has no night.json, so there is nothing to resume. "
+                         f"Runs kept before resume was added never wrote one.")
+    return json.loads(path.read_text(encoding="utf-8"))
 
 
 class Run:
@@ -50,6 +65,18 @@ class Run:
         row = {"t": round(time.time(), 3), "kind": kind, **fields}
         self.game.write(json.dumps(row, ensure_ascii=False, default=str) + "\n")
         self.game.flush()
+
+    def save_night(self, world):
+        """What the night keeps, replaced whole. Written beside and then swapped in, so a
+        crash mid-write leaves the previous night rather than half of this one."""
+        tmp = self.dir / "night.json.tmp"
+        tmp.write_text(json.dumps(world.carry()), encoding="utf-8")
+        os.replace(tmp, self.dir / "night.json")
+
+    def save_start(self, carried, source):
+        """A resumed run keeps the night it woke from, so its replay can wake there too."""
+        (self.dir / "start.json").write_text(json.dumps(carried), encoding="utf-8")
+        self.record("resumed", source=str(source), sol=carried["day"] + 1)
 
     # --- the answer at quit ----------------------------------------------
     def keep(self):

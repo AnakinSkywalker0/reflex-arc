@@ -96,6 +96,16 @@ over: N is refused, and ESC asks whether to keep the run. 0 means no limit.
 **ESC always asks before quitting,** including while the rover is driving a leg: K keeps the
 run in `runs/<stamp>/`, D discards it, ESC goes back.
 
+**Resuming.** A kept run can be carried on later from the next sol:
+
+```bash
+.venv/bin/python game/main.py --resume runs/<stamp>
+```
+
+The rover wakes at the pad with the map, the formation ids, the open objectives, its note
+and your orders. If you quit partway through a sol, that sol counts as played. The resumed
+session is a new run directory, and it uses your current settings, apart from the arena.
+
 Every run's `game.jsonl` has a `settings` row for each sol. `--replay runs/<stamp>` plays a
 kept run under its own settings, never yours, apart from the window and the animation pace.
 
