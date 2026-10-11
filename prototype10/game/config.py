@@ -15,8 +15,8 @@ Prototype 1 walled its areas and lost 22% of gemma's calls to the border.
 # the two. `render.viewport` centres a small area and follows a big one, so raising TILE
 # just starts it scrolling. VIEW_W and VIEW_H are set by `use()` from the arena itself,
 # never written down, so a resize cannot leave the window the wrong shape.
-TILE = 17
-HUD_H = 110
+TILE = 30
+HUD_H = 150
 FPS = 60
 
 # --- palette: martian red-brown and black ----------------------------------

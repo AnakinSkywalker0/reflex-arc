@@ -9,7 +9,7 @@ DAY_SECONDS = 300
 # the objectives cost 40, 15 and 60, so the dearest one plus the drive to it is about 90
 # of the 150: one objective a sol with room left to explore, and a second only by giving
 # up the exploring. That trade is the balancing pass every prototype before this deferred.
-DAY_STEPS = 150
+DAY_STEPS = 500
 
 TIME_SCALE = 1.0        # 2.0 makes the day run twice as fast
 # Driving opens fog, a disc this wide around every cell reached, and it is the only thing
@@ -61,7 +61,7 @@ MODEL_TEMP = 0.0
 MODEL_SEED = 0
 SHOW_THINKING = True    # whether the pane displays the trace; the tape records it anyway
 
-CHAT_W = 1000           # pixel width of the pane, before the screen has a say
+CHAT_W = 990           # pixel width of the pane, before the screen has a say
 
 # The numbers above make an 1880x990 window, which does not fit a 1080p laptop once
 # the title bar and taskbar are taken -- the bottom of the arena and the HUD with it
@@ -78,13 +78,13 @@ SCREEN_RESERVE_H = 110  # title bar plus the taskbar
 #
 # `goto` spends steps, so the day's budget eventually catches a loop of them. MOVE_HOPS
 # is about pacing rather than safety.
-MOVE_HOPS = 10
+MOVE_HOPS = 20
 #
 # `distance`, `count` and `count_cells` spend nothing, so nothing else would ever stop
 # them: a model looping on `count` loops forever. The allowance is per *drive* -- every
 # `goto` resets it to zero. So more looking has to be paid for with moving, and since
 # moving is capped the whole turn terminates: at most (MOVE_HOPS + 1) * FREE_HOPS looks.
-FREE_HOPS = 5
+FREE_HOPS = 10
 #
 # Past a cap the call is refused rather than run, and this many refusals of a kind ends
 # the turn for her. Refusing without ever stopping is how a model spends a whole turn
@@ -138,11 +138,11 @@ GEMINI_THINKING = "low"
 # the call. So the world jumps and `anim.Reel` replays it afterwards. The screen lags the
 # world on purpose. `main.py` does not pump the conversation while a reel is playing.
 ANIMATE = True
-ANIM_PLAN = 0.012       # seconds a cell of the yellow plan takes to draw
-ANIM_PROBE = 0.022      # a cell of a blue distance probe
-ANIM_STEP = 0.070       # a cell of actual driving; 76 steps is about 5.3s
-ANIM_BLOCK = 0.30       # the pause on an outcrop before the plan withdraws
-ANIM_PRUNE = 0.008      # a cell of it retracting back to the rover
+ANIM_PLAN = 0.024       # seconds a cell of the yellow plan takes to draw
+ANIM_PROBE = 0.044      # a cell of a blue distance probe
+ANIM_STEP = 0.140       # a cell of actual driving; 76 steps is about 5.3s
+ANIM_BLOCK = 0.60       # the pause on an outcrop before the plan withdraws
+ANIM_PRUNE = 0.016      # a cell of it retracting back to the rover
 REEL_MAX = 12           # pending reels kept when nothing is drawing them
 
 # The rover sits still this long after a drive before the planner is allowed to think
