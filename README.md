@@ -43,11 +43,13 @@ corrected. The overhead camera in [`ARCHITECTURE.md`](ARCHITECTURE.md) is supers
      with their conclusions in [`docs/findings.md`](docs/findings.md).
    - Prototype 10 is frozen as [`prototype10a/`](prototype10a/), the build the Angaraka recording
      ran on.
-2. **Prototype 10b, the base.** [`prototype10b/DESIGN.md`](prototype10b/DESIGN.md) covers:
+2. **Prototype 10b, the base — built 11 October; the team is testing it.**
+   [`prototype10b/DESIGN.md`](prototype10b/DESIGN.md) covers:
    - settings inside the app, each saying whether it applies now, at the next sol or after a
      relaunch;
    - the scratchpad on screen;
-   - setup instructions.
+   - setup instructions;
+   - resuming a kept run from the next sol.
 
    Then the team runs the multi-sol tests. No model has yet played past sol 1, and those runs
    decide what memory and the scratchpad become. The project team takes UI and UX from 10b.

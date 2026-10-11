@@ -8,6 +8,10 @@ past sol 1. The UI team also works from here.
 Everything not listed below is inherited unchanged and described in
 [`../prototype10a/DESIGN.md`](../prototype10a/DESIGN.md).
 
+**Built 11 Oct 2026.** Two things were added beyond this scope once Ishan had run it: ESC always
+asks before quitting, and a kept run can be resumed from the next sol (`--resume`). Setup and
+every key are in [`README.md`](README.md).
+
 ## Settings inside the app
 
 There are 98 module constants today: 56 in `settings.py` and 42 in `config.py`. They are read at
@@ -29,8 +33,8 @@ a default, a one-line description and a **tier**:
   do not rebuild it.
 - **The model is picked from what Ollama has installed.** Cloud models go through the machine's own
   Ollama sign-in, so there is no key to enter. Gemini keys are deferred.
-- **Mission length is a new setting:** the number of sols after which the run ends and is kept. It
-  is what turns a multi-sol test into one launch.
+- **Mission length is a new setting:** the number of sols after which the run stops, and ESC
+  asks whether to keep it. It is what turns a multi-sol test into one launch.
 - **Every run's log records the settings in force, and replay uses the log's settings,** never the
   current ones. Otherwise changing a setting silently breaks every kept run.
 - **The 29 Sept recording values become a preset:** TILE 30, HUD_H 150, DAY_STEPS 500, MOVE_HOPS 20,
@@ -58,13 +62,37 @@ Both fail identically in 10a, so they predate 10b:
   the word table, the same cause that broke prototype 6.
 - In `test_skills.py`, the group "each gainless drive says so on its own" fails.
 
-## For the team, once this lands: the multi-sol tests
+## For the team: start here
+
+10b has had one short session from Ishan and a lot of headless tests. No model has played it
+past sol 1. Your first job is to try to break it, then to run it for several sols. Work on a
+branch and open a pull request ([`../repo_rules.md`](../repo_rules.md)).
+
+**1. Set it up and test it by hand.** Follow [`README.md`](README.md); every suite should pass.
+The tests drove the new features without a window, so check each one on screen:
+- **O, settings.** Change one setting from each group and check it lands when it says. A "next
+  sol" change shows up as a note in the pane when the next sol opens.
+- **P, the scratchpad.** It fills as the model calls `todo`, `strike` and `remember`, and when
+  you type `/orders ...`.
+- **ESC** always asks K / D / ESC, including while the HUD says ROVER DRIVING.
+- **`--resume runs/<stamp>`** wakes a kept run on the next sol, with its map, note and orders.
+- **`--replay runs/<stamp>`** plays a kept run to the end without "REPLAY DIVERGED".
+- **`--sols 2`** stops the run after sol 2.
+
+When something breaks, keep the run (K) and report it with the run's directory name. A
+`pending-` directory under `runs/` is a session that crashed.
+
+**2. The multi-sol runs.** Load the **design** preset (a 150-step sol) on the settings screen,
+then launch with `--sols 3 --pause none` so nobody has to press SPACE at every leg. The model
+never opens a sol by itself: at the start of each sol, talk to it (TAB), or leave standing
+orders with `/orders` before pressing N. Everything it was sent and said is in
+`runs/<stamp>/chat.jsonl`, and each sol's settings are in `game.jsonl`.
 
 - **The first question is whether anything survives the night as designed.** That covers the map,
   the note, the orders and the finished objectives. `world.next_day` says it keeps them, and no
   model run has ever checked.
 - **Run 3 sols at 150 steps,** so something has to be put off. Read the note it leaves itself each
-  night.
+  night; P shows it on screen.
 - **`gemma4:e4b` is fine for checking the machinery.** Anything that becomes a conclusion gets
   repeated on `gemma4:31b-cloud`. In p2, e4b read cells right 44% of the time; see
   [`../docs/findings.md`](../docs/findings.md).
