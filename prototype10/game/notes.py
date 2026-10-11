@@ -27,7 +27,7 @@ from -- the same failure as a coordinate she has to count out of a grid.
 
 `remember` replaces the whole doc rather than appending. Append-only means she can never
 correct herself, and correction is the thing most worth watching: the outcrop she wrote
-off that was never in the way. Settled in `prototype1/DESIGN.md` and not re-argued.
+off that was never in the way. Settled in prototype 1 (`docs/findings.md`), not re-argued.
 
 Pure state. The wording of every result lives in `skills.py` beside the other failure
 codes, and the rendering in `sight.py` beside the rest of the view, so this file has no

@@ -279,7 +279,7 @@ def todo_list(w):
     binning it.
 
     The empty state names both calls. `why` collapsed to nothing the moment history
-    stopped carrying an example of one (`prototype2/results.md`), and an empty block is a
+    stopped carrying an example of one (`docs/findings.md`), and an empty block is a
     block with no example in it, so the invitation has to be in the words.
     """
     n = w.notes

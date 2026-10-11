@@ -1,7 +1,7 @@
 """Can gemma read the map she is sent? Measured, both arms, at two temperatures.
 
 Answered: she cannot count cells off the picture, and gemini can. The table is in
-`../prototype2/results.md`.
+`docs/findings.md`.
 
 Every answer is scored against the view block she was actually shown, never against the
 true arena, which she cannot see.
@@ -463,7 +463,7 @@ def _post(url, payload, key):
                     wait = max(wait, int(asked.group(1)))
                 metric = re.search(r"metric:\s*\S*?/(\w+)", text)
                 name = metric.group(1) if metric else ""
-                # KNOWN WRONG -- see prototype3/HANDOFF.md. The regex above misses the
+                # KNOWN WRONG. The regex above misses the
                 # server's actual wording ("Please retry in 58.5s"), so this aborts runs
                 # that had quota left and should have waited.
                 spent = name.endswith("_requests") or "per_day" in name

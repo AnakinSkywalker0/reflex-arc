@@ -41,7 +41,7 @@ MOVES = HEADING_NAMES
 FAR = 1 << 30
 
 # The prototype directory, so a relative S.PLAN_FILE means the same thing whether
-# main.py was started from prototype7/ or from prototype7/game/.
+# main.py was started from the prototype directory or from its game/.
 PLAN_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
