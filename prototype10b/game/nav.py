@@ -270,8 +270,7 @@ class Result:
         The zero-step case is the other half -- `goto` to the cell you are standing on
         succeeds, costs nothing, and reads as though something happened.
 
-        Prototype 7's third case -- a drive that bought no map -- is gone. No drive buys
-        map here, so saying so after every one is noise rather than news.
+        The third is a drive that bought no map: `new=0` alone reads as success.
         """
         if self.beside:
             return (f"{_c(self.beside)} is solid, so stopping beside it IS "
@@ -285,6 +284,9 @@ class Result:
                     "nothing has changed and planning this again gives the same answer.")
         if self.code == "DONE" and not self.steps:
             return "you were already standing there. Nothing moved, nothing spent."
+        if self.steps and self.new == 0:
+            return (f"those {self.steps} steps were spent over ground already on your "
+                    f"map and revealed nothing new. Aim at cells showing ?.")
         return ""
 
 

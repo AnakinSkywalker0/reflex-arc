@@ -141,12 +141,10 @@ def test_the_runs_say_what_the_picture_says():
         # The glyph each word has to agree with. Two renderers compared against each
         # other, not both against `nav.known`, which is the layer they share.
         #
-        # The named tiles come out of `world.LABELS` rather than being written again
-        # here. A second copy is how this went red on the objectives branch: `1` was
-        # put on the map and into LABELS, and this table -- which nobody thought of --
-        # raised KeyError on the first cell that carried one.
+        # Named tiles come from `world.label_for`, the one place a name is decided. A
+        # copied table here went stale when objectives took their names from priority.
         word = {sight.FOG: "unseen", "#": "rock", ".": "open",
-                sight.YOU: "the rover (you)", **world.LABELS}
+                sight.YOU: "the rover (you)"}
         ok = True
         for name, w in (("fogged", World()), ("surveyed", surveyed())):
             spans, pic = rle_rows(w), rows(w)
@@ -154,7 +152,8 @@ def test_the_runs_say_what_the_picture_says():
                         len(spans) == 30 and all(len(r) == 30 for r in spans),
                         f"{len(spans)} rows, widths {sorted({len(r) for r in spans})}")
             bad = [(x, y, pic[y][x], spans[y][x]) for y in range(30) for x in range(30)
-                   if word[pic[y][x]] != spans[y][x]]
+                   if (word.get(pic[y][x]) or world.label_for(w, pic[y][x]))
+                   != spans[y][x]]
             ok &= check(f"{name}: every cell agrees with the grid", not bad,
                         f"{len(bad)} disagree, e.g. {bad[:3]}")
             # An unmerged run is still correct cell by cell, and costs double.
