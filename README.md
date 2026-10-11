@@ -27,18 +27,64 @@ driven on real hardware. Designed in [`ROVER.md`](ROVER.md).
 **Hollow Knight.** The system plays a hard game start to finish, an Any% run. Designed in
 [`docs/course.md`](docs/course.md).
 
-## Current phase
+## Current plan
 
-The rover is what is in scope until **5 September**, for the internal hackathon. Everything that
-matters for it is in [`ROVER.md`](ROVER.md); the coursework track runs separately and on its own
-schedule.
+*As of 11 October 2026.* Both SIH entries are in and the results will take a while. Until they
+arrive, the work is making the project better, not the pitch.
+
+**The rover has changed.** It now carries a 360° camera, which mimics the simulation's sight, and
+a LiDAR. The LiDAR knows where fixed things are, which in testing means the room's four walls, and
+tracks the rover's position from them well. That is how wheel slip gets caught. The LiDAR reports
+where the rover actually is, and the model replans from there. Errors are still reported, not
+corrected. The overhead camera in [`ARCHITECTURE.md`](ARCHITECTURE.md) is superseded.
+
+1. **Cleanup — done 11 October.**
+   - Prototypes 1–9 are archived in [`archive/`](archive/) and at the git tag `prototypes-1-9`,
+     with their conclusions in [`docs/findings.md`](docs/findings.md).
+   - Prototype 10 is frozen as [`prototype10a/`](prototype10a/), the build the Angaraka recording
+     ran on.
+2. **Prototype 10b, the base.** [`prototype10b/DESIGN.md`](prototype10b/DESIGN.md) covers:
+   - settings inside the app, each saying whether it applies now, at the next sol or after a
+     relaunch;
+   - the scratchpad on screen;
+   - setup instructions.
+
+   Then the team runs the multi-sol tests. No model has yet played past sol 1, and those runs
+   decide what memory and the scratchpad become. The project team takes UI and UX from 10b.
+3. **Prototype 11 — Ishan.** A Martian simulation game, scoped in its own conversation. On the
+   table:
+   - a bigger map, with regions besides Jezero flats that each have their own hazards;
+   - a clock and a battery;
+   - storms that move;
+   - missions that span several sols, with enough objectives that choosing between them matters;
+   - full autonomy: orders given once, several sols run unattended, then a report.
+
+   The LiDAR is enacted, not implemented. Slip is injected, the rover stops short, and the result
+   says so with its own code, distinct from `BLOCKED`. Still being discussed:
+   - **chunks:** 50×50 cells, each a small block, with hazards and objectives taking whole chunks;
+   - **a scripted baseline** to compare decisions against;
+   - **how the view scales.** The grid view costs about 1,200 tokens at 50×50.
+4. **Prototype 12 — hardware integration with the real LiDAR.** Owned by the team, with Koushik.
+   Whether it forks from 10b or from 11 is decided after 11.
+5. **Documentation overhaul — Ishan, after 11 is scoped.** Two levels: plain docs for people,
+   technical or not, and deep docs for developers and AI.
+
+**Deferred:**
+- merging Abhishek's `rover-bridge` branch, which Ishan reviews first;
+- Gemini keys in the settings;
+- a test run on Windows.
+
+**Stale until the overhaul:**
+- `ARCHITECTURE.md`'s camera section;
+- `work_division.md`, which is the 4 September allocation;
+- `rover_ideas.md`.
 
 ---
 
 ## Repository
 
 **Reading order for anyone new:** this file → [`ROVER.md`](ROVER.md) →
-[`ARCHITECTURE.md`](ARCHITECTURE.md) → [`work_division.md`](work_division.md) for your part →
+[`ARCHITECTURE.md`](ARCHITECTURE.md) → [`docs/findings.md`](docs/findings.md) →
 [`repo_rules.md`](repo_rules.md) before you push anything. On the coursework track,
 [`docs/course.md`](docs/course.md) instead of the rover. Not the raw transcript.
 
@@ -48,10 +94,13 @@ schedule.
 | [`rover_ideas.md`](rover_ideas.md) | the rover in full — the reasoning, and what was already cut |
 | [`ARCHITECTURE.md`](ARCHITECTURE.md) | how the three layers fit together |
 | [`work_division.md`](work_division.md) | who owns what |
-| [`reproduce.md`](reproduce.md) | run the simulation on your own machine — Windows, no GPU needed |
+| [`prototype10b/`](prototype10b/) | the current build — the simulation, the planner and the seam to the rover |
+| [`prototype10a/`](prototype10a/) | prototype 10 frozen as the Angaraka recording ran it |
+| [`docs/findings.md`](docs/findings.md) | what prototypes 1–9 settled — read before changing how the model is spoken to |
+| [`archive/`](archive/) | prototypes 1–9, as a tarball |
 | [`repo_rules.md`](repo_rules.md) | git, context budget, and how ideas get written down |
 | [`docs/course.md`](docs/course.md) | the Hollow Knight implementation — the coursework track |
-| [`docs/sih-decision.md`](docs/sih-decision.md) | which SIH entry to make — open, closes 6 Sept |
+| [`docs/sih-decision.md`](docs/sih-decision.md) | which SIH entries we made, and why — closed; links both decks |
 | [`docs/novelty.md`](docs/novelty.md) | is this actually new — prior art, verified against primary sources |
 | [`docs/pitch.md`](docs/pitch.md) | how to explain the project to someone from nothing |
 | [`docs/literature.md`](docs/literature.md) | reading list with links |

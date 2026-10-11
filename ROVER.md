@@ -41,9 +41,13 @@ in [`ARCHITECTURE.md`](ARCHITECTURE.md).
 
 ## What exists
 
-**The rover is built.** Six wheels, a Raspberry Pi, a motor driver and a buck converter, about a
-foot long. It has no sensors and no brain — it does what it is told and nothing else.
+**The rover is built.** Six wheels, a Raspberry Pi 5, a SmartElex motor driver, a buck converter
+and an 11.1 V LiPo, about a foot long. It carries a 360° camera, which gives it the sight the
+simulation gives the model, and a LiDAR, which tracks its position against fixed features such as
+the walls of the room. It decides nothing: it drives what it is handed and reports where it ended
+up.
 
-
-**The planner runs, the simulator is being built.** The language model and route planning are
-mostly in place; the Unity simulation and the learned driving policy are underway.
+**The planner runs, and the route reaches the motors.** The model, A\* and the fogged simulation
+are in [`prototype10b/`](prototype10b/), and a planned route already drives the real chassis. The
+learned driving policy is not built yet: until it is, the route drives the motors directly. What
+comes next is in the [README](README.md#current-plan).

@@ -21,12 +21,15 @@ rover_ideas.md                   the long version of ROVER.md — reasoning, and
 ARCHITECTURE.md                  the three layers and how a decision reaches the motors
 work_division.md                 who owns what — allocated, with the detail linked
 repo_rules.md                    the rules everyone shares — git, context, writing things down
-reproduce.md                     how to run it on Windows, with or without a GPU
-prototype1/                      the experiments lab — code, DESIGN.md, FINDINGS.md, AUDIT.md
-prototype2/                      the rover arena, and the demo build — results.md is what it closed
-prototype3/                      the active work — the map encoding and the missing skills
+prototype10a/                    prototype 10 frozen — the build the Angaraka recording ran on
+prototype10b/                    the active work — the base the team builds on; DESIGN.md is its scope
+archive/                         prototypes 1–9 as a tarball; also the git tag prototypes-1-9
+docs/findings.md                 what prototypes 1–9 settled — the conclusions, without the code
 docs/course.md                   the coursework track — design, experiments, constraints
-docs/sih-decision.md             which SIH entry to make — open, closes 6 Sept
+docs/sih-decision.md             which SIH entries we made, and why — closed
+docs/sih26226-portal-text.md     the Angaraka entry exactly as submitted — later rounds must agree with it
+docs/sih-submission.md           the 15 Sept snapshot of both entries, kept for its sources
+docs/SIH*.pdf                    the two decks as submitted, Angaraka and GHOST
 docs/pitch.md                    how to explain this to someone from nothing, in eight beats
 docs/novelty.md                  is this actually new — prior art, checked against primary sources
 docs/literature.md               reading list, every link opened and verified
@@ -37,7 +40,8 @@ docs/critique/                   source critiques (mostly untracked binaries)
 
 The two implementations sit at the root; everything else is in `docs/`. Code lives in numbered
 `prototypeN/` directories — a lab rather than a deliverable, where the rules above bend and things
-get messed with.
+get messed with. Only the live ones stay as directories; a finished one goes into `archive/`, and
+what it settled goes into `docs/findings.md` first.
 `00-raw-transcript.md` is history and is never edited; everything else is rewritten in place
 rather than superseded by a new numbered file. Rejected ideas stay in the document that rejected
 them, with the reasoning, so they don't get rediscovered.
