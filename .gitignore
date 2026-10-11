@@ -4,6 +4,9 @@
 *.doc
 *.pdf
 !docs/critique/gemini-novelty-critique.docx
+# The two SIH 2026 decks, as submitted.
+!docs/SIH26226_Maneki_Neko_Project_Angaraka.pdf
+!docs/SIH26209_Maneki_Neko_GHOST.pdf
 
 # Context for a model, not for a teammate. Everyone keeps their own.
 HANDOFF.md
@@ -31,6 +34,8 @@ venv/
 
 # Experiment artifacts
 runs/
+# Run tapes and leftovers from the archived prototypes. Kept on one machine, never pushed.
+archive/local/
 wandb/
 checkpoints/
 *.ckpt

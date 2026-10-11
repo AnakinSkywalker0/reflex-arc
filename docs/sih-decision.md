@@ -1,5 +1,14 @@
 # The problem statement issue
 
+> **Closed.** Reflex Arc went in as **Project Angaraka** under **SIH26226** (AICTE Student
+> Innovation, Hardware), submitted 30 September; the portal text is in
+> [`sih26226-portal-text.md`](sih26226-portal-text.md) and the deck is
+> [`SIH26226_Maneki_Neko_Project_Angaraka.pdf`](SIH26226_Maneki_Neko_Project_Angaraka.pdf).
+> SatQuery (26167) was dropped on 30 September with nothing built; GHOST went to **SIH26209**
+> (Student Innovation, Software) instead, deck
+> [`SIH26209_Maneki_Neko_GHOST.pdf`](SIH26209_Maneki_Neko_GHOST.pdf). This file is kept for the
+> reasoning, which still holds.
+
 SIH 2026 opened on 21 August with 226 problem statements. We went looking for where Reflex Arc
 fits. We found it. Then we found something else, and now there are two ways in.
 
@@ -166,16 +175,20 @@ That is the real asymmetry, and it is not about which project is better.
 
 ---
 
-## What is not decided
+## How it was decided
 
-- Which statement we enter, or whether we enter both. **A team may submit two ideas** — so this
-  need not be either/or at submission, only at build.
-- What the other four people do on the GHOST track.
-- Whether the internal hackathon in Sept–Oct is a selection signal we should use rather than
-  predict.
+- **We entered both.** A team may submit two ideas, and the two do not compete for the same slot.
+- **The team-fit worry in §4 dissolved.** Abhishek takes Reflex Arc refinement; Ishan takes
+  GHOST. Abhishek's original contribution was the website and running models — Ishan designed
+  the architecture and wrote the code, so the GHOST track does not need him.
+- **§7's judge argument decided the framing**, and it survived contact: a ministry statement
+  removes the burden of explaining hyperspectral imaging before reaching our own contribution.
+- The two entries turned out to share one thesis — *a model decides, a frozen specialist acts,
+  and the model knows the specialist's envelope*. Reflex Arc is that pointed at actuation,
+  SatQuery at perception. Owned rather than hidden.
 
-**Deadline: registration closes 6 September.** The decision about what to *build* does not have to
-be made on the same day as the decision about what to *submit*.
+Internal rounds are passed and the college nomination is done. **PPT idea submission was due
+15 September 2026.**
 
 ## Verify before relying on any of this
 
