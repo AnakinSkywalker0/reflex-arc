@@ -80,7 +80,7 @@ class Reel:
                 return
             self._load(self.world.reel.pop(0))
 
-        self.wait -= dt
+        self.wait -= dt * S.ANIM_SPEED
         # A long dt -- a stall, or a slow model turn holding the loop -- catches up
         # rather than playing in slow motion afterwards.
         while self.wait <= 0 and self.i < len(self.frames):

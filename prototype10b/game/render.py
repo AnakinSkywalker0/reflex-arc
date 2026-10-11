@@ -10,6 +10,7 @@ import textwrap
 import pygame
 
 import config as C
+import registry
 import settings as S
 import world as W
 
@@ -304,6 +305,8 @@ def _hud(surf, w, f, reel=None):
             "WASD drive   M map   X mark   T console   ")
     surf.blit(f.tiny.render(hint + "TAB talk   H thinking   Q end sol   ESC quit",
                             True, C.FAINT), (MARGIN, y0 + 84))
+    surf.blit(f.tiny.render("O settings   P scratchpad", True, C.FAINT),
+              (MARGIN, y0 + 100))
 
     # The rover is out on the floor driving a leg and everything here is held until it
     # is done. Say what it was given, or the operator is being asked to confirm
@@ -511,8 +514,30 @@ def _overlay_lines(text, cols):
             for piece in (textwrap.wrap(para, cols, drop_whitespace=False) or [""])]
 
 
+def _pad_lines(w, cols, open_):
+    """The scratchpad: her list as checkboxes, then the note and the orders under it."""
+    n = w.notes
+    head = f"SCRATCHPAD   {n.open} open of {len(n.todos)}"
+    if not open_:
+        return [(head + "   P to show", C.CHAT_MUTED, False)]
+    out = [(head + "   P to hide", C.CHAT_MUTED, False)]
+    for i, (text, struck) in enumerate(n.todos, 1):
+        box = "[x]" if struck else "[ ]"
+        tone = C.CHAT_MUTED if struck else C.CHAT_TEXT
+        for k, piece in enumerate(textwrap.wrap(text, cols - 7) or [""]):
+            out.append(((f"{box} {i:>2} " if k == 0 else " " * 7) + piece, tone, True))
+    if not n.todos:
+        out.append(("nothing on today's list", C.CHAT_THINK, True))
+    for title, text, tone in (("NOTE FOR TOMORROW", n.memory, C.CHAT_PLANNER),
+                              ("STANDING ORDERS", n.orders, C.CHAT_OPERATOR)):
+        out.append((title, C.CHAT_MUTED, False))
+        for piece in textwrap.wrap(text, cols) or ["(none)"]:
+            out.append((piece, tone if text else C.CHAT_THINK, True))
+    return out
+
+
 def draw_chat(surf, conv, w, f, line, focused, scroll, show_thinking=True, reel=None,
-              overlay=None):
+              overlay=None, pad=None):
     """The right-hand pane. Returns how far back it is still possible to scroll.
 
     `overlay` replaces the transcript with a block to read -- V, and the view. It is
@@ -539,6 +564,9 @@ def draw_chat(surf, conv, w, f, line, focused, scroll, show_thinking=True, reel=
         state, tone = "waiting for the rover...", C.CHAT_SKILL
     elif conv.busy:
         state, tone = ("thinking..." if not conv.say_buf else "answering..."), C.CHAT_GOOD
+    elif w.day_over and S.MISSION_SOLS and w.day >= S.MISSION_SOLS:
+        state, tone = (f"MISSION OVER after {w.day} sols  ·  ESC keeps the run and quits",
+                       C.CHAT_BAD)
     elif w.day_over:
         state, tone = f"SOL {w.day} OVER  ·  talk, then N for sol {w.day + 1}", C.CHAT_BAD
     elif conv.last:
@@ -551,6 +579,19 @@ def draw_chat(surf, conv, w, f, line, focused, scroll, show_thinking=True, reel=
 
     pygame.draw.line(surf, C.CHAT_RULE, (x, head_h - 8), (x + inner, head_h - 8))
     pygame.draw.line(surf, C.CHAT_RULE, (x, H - foot_h), (x + inner, H - foot_h))
+
+    # The scratchpad sits above the transcript and takes at most two fifths of it.
+    if pad is not None and overlay is None:
+        rows_pad = _pad_lines(w, cols, pad)
+        fit = (H - head_h - foot_h) * 2 // 5 // CHAT_LINE_H
+        if len(rows_pad) > fit:
+            rows_pad = rows_pad[:fit - 1] + [("...", C.CHAT_MUTED, True)]
+        for i, (text, colour, indent) in enumerate(rows_pad):
+            font = f.chat if indent else f.chat_head
+            surf.blit(font.render(text, True, colour),
+                      (x + (CHAT_INDENT if indent else 0), head_h + i * CHAT_LINE_H))
+        head_h += len(rows_pad) * CHAT_LINE_H + 6
+        pygame.draw.line(surf, C.CHAT_RULE, (x, head_h - 4), (x + inner, head_h - 4))
 
     body_h = H - head_h - foot_h
     rows = body_h // CHAT_LINE_H
@@ -571,9 +612,82 @@ def draw_chat(surf, conv, w, f, line, focused, scroll, show_thinking=True, reel=
         surf.blit(f.chat.render("TAB to type", True, C.CHAT_MUTED), (x, y))
     hint = ("V or ESC back to the conversation    wheel scrolls" if overlay is not None
             else "ENTER send    ESC stop typing    /status resend the line" if focused
-            else "TAB talk    V what it sees    H thinking    N next sol    wheel scrolls")
+            else "TAB talk   V what it sees   H thinking   P scratchpad   O settings   "
+                 "N next sol")
     surf.blit(f.tiny.render(hint, True, C.CHAT_MUTED), (x, H - 22))
     if scroll:
         s = f.tiny.render(f"scrolled back {scroll}", True, C.CHAT_BAD)
         surf.blit(s, s.get_rect(topright=(x + inner, H - 22)))
     return max_scroll
+
+
+# --- the settings screen ---------------------------------------------------
+# Plain on purpose: the UI team restyles it from `registry`, they do not rebuild it.
+
+def draw_settings(surf, f, items, picked, prefs, editing, notice, models, replaying):
+    """Every registry setting over the whole window, grouped by when a change lands."""
+    surf.fill(C.CHAT_BG)
+    W_, H_ = surf.get_size()
+    x = 40
+    surf.blit(f.big.render("SETTINGS", True, C.INK), (x, 20))
+    sub = (f"yours are saved in {registry.USER_FILE.name}, which git ignores"
+           if not replaying else "replay: the kept run's settings are in force")
+    surf.blit(f.hud.render(sub, True, C.MUTED), (x, 48))
+
+    lines = []          # (text, colour, item index or None)
+    tier = None
+    for i, (kind, it) in enumerate(items):
+        if kind == "preset":
+            lines.append((f"load preset: {it}", C.CHAT_SKILL, i))
+            continue
+        if it.tier != tier:
+            tier = it.tier
+            lines.append(("", C.MUTED, None))
+            lines.append((registry.TIER_NAMES[tier].upper(), C.MUTED, None))
+        shown = prefs.shown(it)
+        text = f"{it.name:<16} {registry.show(shown)}"
+        if it.tier == "sol" and it.name in prefs.pending:
+            text += f"    (now {registry.show(it.value)})"
+        elif it.tier == "relaunch" and shown != it.value:
+            text += f"    (now {registry.show(it.value)})"
+        if shown != it.default:
+            text += f"    default {registry.show(it.default)}"
+        locked = replaying and it.tier != "now"
+        lines.append((text, C.MUTED if locked else C.INK, i))
+
+    line_h = 20
+    top, foot = 80, 110
+    rows = (H_ - top - foot) // line_h
+    at = next(n for n, (_, _, i) in enumerate(lines) if i == picked)
+    first = max(0, min(at - rows // 2, len(lines) - rows))
+    for n, (text, colour, i) in enumerate(lines[first:first + rows]):
+        y = top + n * line_h
+        if i == picked:
+            pygame.draw.rect(surf, C.FAINT, (x - 8, y - 2, W_ - 2 * x + 16, line_h))
+            if editing is not None:
+                text = f"{text.split()[0]:<16} > {editing}_"
+        surf.blit(f.hud.render(text, True, colour), (x, y))
+
+    kind, it = items[picked]
+    if kind == "preset":
+        about = ", ".join(f"{k} {registry.show(v)}"
+                          for k, v in registry.PRESETS[it].items())
+    else:
+        about = f"{it.desc}.  {registry.TIER_NAMES[it.tier]}."
+        if it.kind in ("int", "float"):
+            about += f"  {registry.show(it.lo)} to {registry.show(it.hi)}."
+        elif it.choices:
+            about += "  " + " / ".join(registry.show(c) for c in it.choices) + "."
+    if kind == "setting" and it.name == "MODEL" and models is None:
+        about += "  Ollama did not answer, so no list; ENTER types a tag."
+    y = H_ - foot + 10
+    pygame.draw.line(surf, C.FAINT, (x, y - 8), (W_ - x, y - 8))
+    for piece in textwrap.wrap(about, max(40, (W_ - 2 * x) // f.hud.size("M")[0]))[:2]:
+        surf.blit(f.hud.render(piece, True, C.INK), (x, y))
+        y += 20
+    if notice:
+        surf.blit(f.hud.render(notice, True, C.CHAT_SKILL), (x, y))
+    keys = ("ENTER save    ESC cancel" if editing is not None else
+            "UP/DOWN choose    LEFT/RIGHT change    ENTER type a value or load a preset"
+            "    R default    O or ESC close")
+    surf.blit(f.tiny.render(keys, True, C.MUTED), (x, H_ - 24))

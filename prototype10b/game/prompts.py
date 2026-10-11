@@ -130,8 +130,8 @@ the operator can.
 can drive as long as the work needs, one call at a time. Words alone do not hand back;
 only `end` does. So never announce what you are about to do -- do it, then describe it.
 
-Ten drives a turn. Looking costs no steps, so it is limited another way: five looks, and
-driving anywhere gives all five back. Every result says what is left.
+{S.MOVE_HOPS} drives a turn. Looking costs no steps, so it is limited another way: \
+{S.FREE_HOPS} looks, and driving anywhere gives them all back. Every result says what is left.
 
 **`goto` has no range limit.** One call drives the whole way to any coordinate on the
 map, however far, and it costs you one turn whether the target is two cells away or right

@@ -34,6 +34,7 @@ result check below is what turns a silent divergence into a halt.
 import json
 
 import chat
+import registry
 
 
 class Divergence(Exception):
@@ -95,6 +96,10 @@ class Script:
             if r.get("kind") in ("orders", "placed"):
                 self.ops.setdefault(r.get("day"), []).append(r)
 
+        # The settings each sol was played under. Replay puts these in force rather
+        # than the viewer's own, or a changed default would break every kept run.
+        self.settings = registry.from_log(game_rows)
+
         self.i = 0
 
     def __len__(self):
@@ -111,6 +116,10 @@ class Script:
         t = self.turns[self.i]
         self.i += 1
         return t
+
+    def use_settings(self, sol):
+        """Put sol `sol`'s world settings in force. Returns the names that were refused."""
+        return registry.apply(self.settings.get(sol, {}), only=lambda s: s.replayed)
 
     def operator(self, world, day):
         """Re-do what the operator did at the close of `day`. Returns what she typed.

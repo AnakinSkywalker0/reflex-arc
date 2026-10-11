@@ -1,11 +1,14 @@
-"""Run me:  .venv/bin/python game/main.py [--arena 30|50] [--map grid|rle]
-                                        [--prompt sighted] [--think]
-                                        [--replay runs/<stamp>]
+"""Run me:  .venv/bin/python game/main.py [--arena 30|50] [--map grid|rle] [--sols N]
+                                        [--model TAG] [--think] [--replay runs/<stamp>]
 
 WASD drive (hold to keep going)   M map   X mark   T console
 TAB talk to the planner   V what it sees   H hide/show its reasoning
+O settings   P show/hide the scratchpad
 N next sol (once one has ended)   Q end the sol   ESC quit
 SPACE the rover has finished the leg -- pressed at every pause
+
+Settings come from `registry.py`: the code's defaults, then `user_settings.json`, then
+flags for this launch. README.md says when each kind of change lands.
 
 A Martian plain, a landing pad at the centre, and gemma in the pane on the right. The
 rover maps what it drives past, out to `VISION_RADIUS`, and that is the only thing that
@@ -44,6 +47,7 @@ import config as C
 import console
 import logs
 import nav
+import registry
 import render
 import replay
 import settings as S
@@ -55,66 +59,75 @@ DIRS = {pygame.K_w: (0, -1), pygame.K_s: (0, 1), pygame.K_a: (-1, 0), pygame.K_d
         pygame.K_RIGHT: (1, 0)}
 
 
-def read_flags(argv):
-    """Mutates `settings` before anything reads it. Defaults come from `settings.py`.
+def read_flags(argv, prefs):
+    """Puts every setting in force before anything reads one. Returns (args, script).
+
+    The order is the precedence: the code's defaults, then the person's saved settings,
+    then flags for this launch only, then -- on a replay -- the kept run's own values,
+    which win because a replay under different settings is a different run.
 
     `--think` sets the trace and the sampler together, because a reasoning trace that
-    starts repeating at temperature 0 has no noise to climb out with. `None` rather than
-    a number of our choosing, so `chat._stream` omits the option and the whole sampler
-    comes from the model.
+    starts repeating at temperature 0 has no noise to climb out with.
     """
     p = argparse.ArgumentParser(prog="game/main.py")
-    p.add_argument("--map", choices=("grid", "rle"), default=S.MAP_FORMAT,
-                   help=f"how the map is written into the view (default: {S.MAP_FORMAT})")
-    p.add_argument("--arena", choices=tuple(C.ARENAS), default=C.APP_ARENA,
-                   help=f"which arena to land on (default: {C.APP_ARENA}x{C.APP_ARENA})")
+    p.add_argument("--map", choices=("grid", "rle"),
+                   help="how the map is written into the view")
+    p.add_argument("--arena", choices=tuple(C.ARENAS), help="which arena to land on")
     p.add_argument("--prompt", choices=tuple(prompts.PROMPTS), default=prompts.DEFAULT,
                    help=f"which system prompt to run (default: {prompts.DEFAULT})")
-    p.add_argument("--model", default=S.MODEL,
-                   help=f"any tag `ollama list` shows, or a `-cloud` one (default: {S.MODEL})")
-    p.add_argument("--executor", choices=("teleport", "plan"), default=S.EXECUTOR,
-                   help=f"what a goto does; 'plan' writes the route and moves nothing "
-                        f"(default: {S.EXECUTOR})")
+    p.add_argument("--model", help="any tag `ollama list` shows, or a `-cloud` one")
+    p.add_argument("--executor", choices=("teleport", "plan"),
+                   help="what a goto does; 'plan' writes the route and moves nothing")
     p.add_argument("--think", action="store_true",
                    help="reasoning trace on, and the sampler left to the model")
-    p.add_argument("--pause", choices=("key", "none"), default=S.ROVER_PAUSE,
-                   help=f"who says the rover finished a leg; 'key' is SPACE at every "
-                        f"pause (default: {S.ROVER_PAUSE})")
+    p.add_argument("--pause", choices=("key", "none"),
+                   help="who says the rover finished a leg; 'key' is SPACE at every pause")
+    p.add_argument("--sols", type=int, help="sols in the mission; 0 is no limit")
     p.add_argument("--replay", metavar="RUN_DIR",
                    help="re-issue a kept run's calls with no model in the loop")
     args = p.parse_args(argv)
-    S.ROVER_PAUSE = args.pause
-    S.MAP_FORMAT = args.map
-    S.EXECUTOR = args.executor
-    # A flag rather than an edit to `settings.py`, so the two arms of a size comparison
-    # differ by an argument that the tape then records, and not by a file that has to be
-    # put back afterwards.
-    S.MODEL = args.model
-    # Before anything reads `config` -- the window is sized off it and so is the world.
-    C.use(args.arena)
+
+    prefs.apply_all()
+    for w in prefs.warnings:
+        print("settings:", w)
+    flags = {"MAP_FORMAT": args.map, "APP_ARENA": args.arena, "MODEL": args.model,
+             "EXECUTOR": args.executor, "ROVER_PAUSE": args.pause,
+             "MISSION_SOLS": args.sols}
+    bad = registry.apply({k: v for k, v in flags.items() if v is not None})
+    if bad:
+        p.error(f"out of range: {', '.join(bad)}")
     if args.think:
         S.MODEL_THINK = True
         S.MODEL_TEMP = None
-    # Last: the prompt text is built from the arena size and the map format, so both
-    # have to be settled before it is assembled.
-    prompts.use(args.prompt)
-    return args
 
-
-def main():
-    args = read_flags(sys.argv[1:])
     # Loaded before pygame opens a window: a run directory that is missing or has no
     # calls in it should say so at the prompt, not behind a window that then closes.
     script = replay.load(pathlib.Path(args.replay)) if args.replay else None
+    if script:
+        script.use_settings(1)
+
+    # Before anything reads `config` -- the window is sized off it and so is the world.
+    C.use(C.APP_ARENA)
+    # Last: the prompt is built from the arena, the map format and the turn caps.
+    prompts.use(args.prompt)
+    return args, script
+
+
+def main():
+    prefs = registry.Prefs()
+    args, script = read_flags(sys.argv[1:], prefs)
     pygame.init()
-    # The map format is in the title bar because the two arms are told apart by nothing
-    # else on screen -- the pane shows a one-line summary either way. The arena is there
-    # for the opposite reason: it is obvious on screen and easy to forget in a note.
-    pygame.display.set_caption(
-        f"Reflex Arc -- prototype 10b  ·  {C.VIEW_W}x{C.VIEW_H}  ·  {S.MAP_FORMAT} map"
-        + (f"  ·  replay of {pathlib.Path(args.replay).name}" if args.replay else
-           f"  ·  {S.MODEL}")
-        + ("  ·  thinking, sampler unpinned" if S.MODEL_THINK else ""))
+
+    def title():
+        """The map format is here because nothing else on screen tells the two arms
+        apart. Rewritten at nightfall, when the model or the format may change."""
+        pygame.display.set_caption(
+            f"Reflex Arc -- prototype 10b  ·  {C.VIEW_W}x{C.VIEW_H}  ·  {S.MAP_FORMAT} map"
+            + (f"  ·  replay of {pathlib.Path(args.replay).name}" if args.replay else
+               f"  ·  {S.MODEL}")
+            + ("  ·  thinking" if S.MODEL_THINK else ""))
+
+    title()
     # Before anything asks how big anything is: every other size is derived from
     # C.TILE and S.CHAT_W, so this has to run ahead of set_mode and the subsurfaces.
     render.fit_to_display()
@@ -132,21 +145,15 @@ def main():
     # see logs.py for why that order and not the other one.
     runs = pathlib.Path(__file__).resolve().parent.parent / "runs"
     run = logs.Run(runs)
-    # The conditions go on the tape, not in the directory name. Two runs differing by one
-    # setting are otherwise told apart only by their timestamps, which is not evidence.
-    #
-    # `prompt` is a hash of the system prompt and `host` says where the model ran. Two
-    # runs of one probe scored 22% and 56% and the cause could not be settled afterwards,
-    # because nothing on either tape recorded which prompt it had been asked under.
-    # `arena` is here for the same reason -- it is a flag now, so a tape without it would
-    # not say which of the two the run happened on.
-    run.record("run", map_format=S.MAP_FORMAT, model=S.MODEL, temp=S.MODEL_TEMP,
-               seed=S.MODEL_SEED, think=S.MODEL_THINK, ctx=S.MODEL_CTX,
-               vision=S.VISION_RADIUS,
-               replans=S.NAV_REPLANS, day_steps=S.DAY_STEPS, host=S.OLLAMA_HOST,
-               todo_max=S.TODO_MAX, memory_chars=S.MEMORY_CHARS,
-               arena=f"{C.VIEW_W}x{C.VIEW_H}",
-               prompt=hashlib.sha256(prompts.SYSTEM.encode()).hexdigest()[:12])
+
+    def log_settings(sol):
+        """Every setting in force, and a hash of the prompt they built, once a sol.
+        Two runs of one probe once scored 22% and 56% and nothing on either tape said
+        which prompt they had been asked under. Replay reads these rows back."""
+        run.record("settings", sol=sol, values=registry.snapshot(),
+                   prompt=hashlib.sha256(prompts.SYSTEM.encode()).hexdigest()[:12])
+
+    log_settings(1)
     w = World(recorder=run.record)
     nav.clear_plan(w)   # this session's route file starts empty, never yesterday's
     tape = chat.Tape(run.chat_path)
@@ -191,7 +198,10 @@ def main():
     next_step = 0
     line, history = "", []
     said, typing, scroll, scroll_max = "", False, 0, 0
-    show_thinking = S.SHOW_THINKING
+    pad_open = True
+    picked, editing, notice, models = 0, None, "", None
+    items = [("preset", label) for label in registry.PRESETS] + \
+            [("setting", st) for st in registry.SETTINGS]
 
     def leave(keep):
         run.record("quit", kept=keep, day=w.day, steps=w.steps,
@@ -266,6 +276,8 @@ def main():
         moving, which is the thing actually worth watching, and the HUD says what it
         was sent.
         """
+        if S.ROVER_PAUSE != "key":
+            return
         world.awaiting_rover = list(dirs)
         try:
             while True:
@@ -280,13 +292,87 @@ def main():
                 clock.tick(C.FPS)
                 render.draw_world(game, w, fonts, reel)
                 render.draw_chat(pane, conv, w, fonts, said, typing, scroll,
-                                 show_thinking, reel, None)
+                                 S.SHOW_THINKING, reel, None, pad_open)
                 pygame.display.flip()
         finally:
             world.awaiting_rover = None
 
-    if S.ROVER_PAUSE == "key":
-        nav._await_rover = await_rover
+    nav._await_rover = await_rover
+
+    def mission_over():
+        return bool(S.MISSION_SOLS) and w.day_over and w.day >= S.MISSION_SOLS
+
+    def nightfall():
+        """The sol rolls over. Settings waiting for it go in force first, then the
+        prompt is rebuilt from them, so the new sol's planner is told the new numbers.
+
+        A replay does the operator's half itself, and does it *before* the rollover:
+        orders typed at nightfall are what the next sol opens holding.
+        """
+        nonlocal conv
+        notes = []
+        if script:
+            for done in script.operator(w, w.day):
+                conv.write("status", f"operator, sol {w.day} -- {done}")
+            script.use_settings(w.day + 1)
+        else:
+            changed = prefs.nightfall()
+            notes = [f"{k} {registry.show(v)}" for k, v in changed.items()]
+        prompts.use(args.prompt)
+        w.next_day()
+        log_settings(w.day)
+        title()
+        conv = talker()
+        conv.ready = ready
+        conv.open_day(w)
+        if notes:
+            conv.write("note", "settings from this sol: " + ", ".join(notes))
+
+    def settings_key(e):
+        """One key on the settings screen. Returns False when the screen closes."""
+        nonlocal picked, editing, notice
+        kind, it = items[picked]
+        locked = bool(script) and (kind == "preset" or it.tier != "now")
+        if editing is not None:
+            if e.key == pygame.K_ESCAPE:
+                editing = None
+            elif e.key == pygame.K_RETURN:
+                notice = change(it, editing)
+                editing = None
+            elif e.key == pygame.K_BACKSPACE:
+                editing = editing[:-1]
+            elif e.unicode and e.unicode.isprintable():
+                editing += e.unicode
+            return True
+        if e.key in (pygame.K_ESCAPE, pygame.K_o):
+            return False
+        if e.key in (pygame.K_UP, pygame.K_w, pygame.K_DOWN, pygame.K_s):
+            d = -1 if e.key in (pygame.K_UP, pygame.K_w) else 1
+            picked, notice = (picked + d) % len(items), ""
+        elif locked and e.key in (pygame.K_LEFT, pygame.K_a, pygame.K_RIGHT, pygame.K_d,
+                                  pygame.K_RETURN, pygame.K_r):
+            notice = "a replay runs on the kept run's settings; only 'now' ones change"
+        elif kind == "preset" and e.key == pygame.K_RETURN:
+            prefs.preset(it)
+            notice = f"loaded {it}; each value lands on its own tier"
+        elif kind == "setting" and e.key in (pygame.K_LEFT, pygame.K_a,
+                                             pygame.K_RIGHT, pygame.K_d):
+            d = -1 if e.key in (pygame.K_LEFT, pygame.K_a) else 1
+            notice = change(it, it.nudge(prefs.shown(it), d))
+        elif kind == "setting" and e.key == pygame.K_RETURN:
+            editing = "" if prefs.shown(it) is None else str(prefs.shown(it))
+        elif kind == "setting" and e.key == pygame.K_r:
+            notice = change(it, it.default)
+        return True
+
+    def change(st, v):
+        try:
+            v = prefs.set(st.name, v)
+        except ValueError as err:
+            return f"{st.name} not changed: {err}"
+        if st.name == "MODEL" and models is not None and v not in models:
+            return f"{v} is not in `ollama list`; pull it before the next sol"
+        return f"{st.name} {registry.show(v)} -- {registry.TIER_NAMES[st.tier]}"
 
     while True:
         dt = clock.tick(C.FPS) / 1000.0
@@ -294,6 +380,8 @@ def main():
 
         for e in pygame.event.get():
             if e.type == pygame.QUIT:
+                if mission_over():
+                    leave(True)
                 mode, typing, held = "quit", False, None
             if e.type == pygame.KEYUP and e.key == held:
                 held = None
@@ -355,6 +443,11 @@ def main():
                     line += e.unicode
                 continue
 
+            if mode == "settings":
+                if not settings_key(e):
+                    mode, editing = "world", None
+                continue
+
             # Looking at the view eats every key, the way the console does, or the arrow
             # keys would drive the rover out from under the block being read.
             if mode == "view":
@@ -386,21 +479,19 @@ def main():
                 elif e.key == pygame.K_TAB:
                     typing, held = True, None
                 elif e.key == pygame.K_h:
-                    show_thinking = not show_thinking
+                    S.SHOW_THINKING = not S.SHOW_THINKING
                     scroll = 0
+                elif e.key == pygame.K_p:
+                    pad_open = not pad_open
+                elif e.key == pygame.K_o:
+                    mode, held, notice = "settings", None, ""
+                    models = chat.installed_models()
+                    registry.BY_NAME["MODEL"].choices = models
                 # You start the sol, not the loop. The old conversation is dropped here
                 # rather than carried, so anything gemma wanted to keep had to be said
                 # while the sol it belonged to was still open. Carrying it is item 7.
-                elif e.key == pygame.K_n and w.day_over:
-                    # A replay does the operator's half itself, and does it *before*
-                    # the rollover: she typed at nightfall, so orders written now are
-                    # what the next sol opens holding.
-                    if script:
-                        for line in script.operator(w, w.day):
-                            conv.write("status", f"operator, sol {w.day} -- {line}")
-                    w.next_day()
-                    conv = talker()
-                    conv.open_day(w)
+                elif e.key == pygame.K_n and w.day_over and not mission_over():
+                    nightfall()
                     scroll = 0
                 # V overlays the view block; V again puts it away. A thing you open to
                 # look at is a mode, not a message -- appending it instead once put
@@ -409,6 +500,8 @@ def main():
                 elif e.key == pygame.K_v:
                     mode, scroll = "view", 0
                 elif e.key == pygame.K_ESCAPE:
+                    if mission_over():
+                        leave(True)
                     mode, held = "quit", None
 
             elif mode == "map":
@@ -447,8 +540,11 @@ def main():
         # asked for yet.
         conv.pump()
         scroll_max = render.draw_chat(pane, conv, w, fonts, said, typing, scroll,
-                                      show_thinking, reel,
-                                      sight.view(w) if mode == "view" else None)
+                                      S.SHOW_THINKING, reel,
+                                      sight.view(w) if mode == "view" else None, pad_open)
+        if mode == "settings":
+            render.draw_settings(screen, fonts, items, picked, prefs, editing, notice,
+                                 models, bool(script))
         pygame.display.flip()
 
 

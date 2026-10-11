@@ -9,9 +9,14 @@ DAY_SECONDS = 300
 # the objectives cost 40, 15 and 60, so the dearest one plus the drive to it is about 90
 # of the 150: one objective a sol with room left to explore, and a second only by giving
 # up the exploring. That trade is the balancing pass every prototype before this deferred.
+# 500 is the 29 Sept recording's value, and it breaks that balance. `registry.PRESETS`
+# holds both sets; which one is the default has not been decided.
 DAY_STEPS = 500
 
 TIME_SCALE = 1.0        # 2.0 makes the day run twice as fast
+# Sols in a mission. When the last one ends the run is kept and the app stops there.
+# 0 is no limit, and the run is kept or discarded at quit as before.
+MISSION_SOLS = 0
 # Driving opens fog, a disc this wide around every cell reached, and it is the only thing
 # that does -- Ingenuity is cut, and a blind rover cannot answer the geology question by
 # driving, which is the only way it is meant to be answered.
@@ -138,11 +143,12 @@ GEMINI_THINKING = "low"
 # the call. So the world jumps and `anim.Reel` replays it afterwards. The screen lags the
 # world on purpose. `main.py` does not pump the conversation while a reel is playing.
 ANIMATE = True
-ANIM_PLAN = 0.024       # seconds a cell of the yellow plan takes to draw
-ANIM_PROBE = 0.044      # a cell of a blue distance probe
-ANIM_STEP = 0.140       # a cell of actual driving; 76 steps is about 5.3s
-ANIM_BLOCK = 0.60       # the pause on an outcrop before the plan withdraws
-ANIM_PRUNE = 0.016      # a cell of it retracting back to the rover
+ANIM_SPEED = 0.5        # 1.0 plays the timings below as written; the recording ran at 0.5
+ANIM_PLAN = 0.012       # seconds a cell of the yellow plan takes to draw
+ANIM_PROBE = 0.022      # a cell of a blue distance probe
+ANIM_STEP = 0.070       # a cell of actual driving; 76 steps is about 5.3s
+ANIM_BLOCK = 0.30       # the pause on an outcrop before the plan withdraws
+ANIM_PRUNE = 0.008      # a cell of it retracting back to the rover
 REEL_MAX = 12           # pending reels kept when nothing is drawing them
 
 # The rover sits still this long after a drive before the planner is allowed to think

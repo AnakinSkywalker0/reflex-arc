@@ -109,6 +109,19 @@ def _args(a):
     return {}
 
 
+def installed_models(timeout=2):
+    """What `ollama list` shows, as tags, or None if Ollama did not answer.
+
+    Cloud models appear here once pulled, and run through this machine's sign-in.
+    """
+    url = S.OLLAMA_HOST.rsplit("/api/", 1)[0] + "/api/tags"
+    try:
+        with urllib.request.urlopen(url, timeout=timeout) as r:
+            return sorted(m["name"] for m in json.load(r).get("models", ()))
+    except (urllib.error.URLError, TimeoutError, OSError, ValueError, KeyError):
+        return None
+
+
 class Conversation:
     """One day's talk. Thrown away at nightfall, which is the whole architecture.
 
