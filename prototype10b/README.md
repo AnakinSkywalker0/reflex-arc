@@ -90,8 +90,11 @@ the objective costs were balanced for). Which should be the default has not been
 Flags override your saved settings for one launch: `--model`, `--map`, `--arena`,
 `--executor`, `--pause`, `--sols`, `--think`.
 
-**Mission length** (`MISSION_SOLS`, or `--sols 3`) ends the run once that many sols are
-over, and the run is kept. ESC then quits. 0 means no limit.
+**Mission length** (`MISSION_SOLS`, or `--sols 3`) stops the run once that many sols are
+over: N is refused, and ESC asks whether to keep the run. 0 means no limit.
+
+**ESC always asks before quitting,** including while the rover is driving a leg: K keeps the
+run in `runs/<stamp>/`, D discards it, ESC goes back.
 
 Every run's `game.jsonl` has a `settings` row for each sol. `--replay runs/<stamp>` plays a
 kept run under its own settings, never yours, apart from the window and the animation pace.

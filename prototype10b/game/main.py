@@ -279,18 +279,24 @@ def main():
         if S.ROVER_PAUSE != "key":
             return
         world.awaiting_rover = list(dirs)
+        asking = False      # ESC asks the same keep-or-discard question as anywhere else
         try:
             while True:
                 for e in pygame.event.get():
                     if e.type == pygame.QUIT:
-                        leave(False)
-                    if e.type == pygame.KEYDOWN:
-                        if e.key == pygame.K_SPACE:
-                            return
-                        if e.key == pygame.K_ESCAPE:
-                            leave(False)
+                        asking = True
+                    if e.type != pygame.KEYDOWN:
+                        continue
+                    if asking:
+                        asking = answer_quit(e)
+                    elif e.key == pygame.K_SPACE:
+                        return
+                    elif e.key == pygame.K_ESCAPE:
+                        asking = True
                 clock.tick(C.FPS)
                 render.draw_world(game, w, fonts, reel)
+                if asking:
+                    render.draw_quit(game, w, fonts, run, mission_over())
                 render.draw_chat(pane, conv, w, fonts, said, typing, scroll,
                                  S.SHOW_THINKING, reel, None, pad_open)
                 pygame.display.flip()
@@ -301,6 +307,14 @@ def main():
 
     def mission_over():
         return bool(S.MISSION_SOLS) and w.day_over and w.day >= S.MISSION_SOLS
+
+    def answer_quit(e):
+        """K keeps the run, D discards it, ESC goes back. Returns whether still asking."""
+        if e.key == pygame.K_k:
+            leave(True)
+        elif e.key == pygame.K_d:
+            leave(False)
+        return e.key != pygame.K_ESCAPE
 
     def nightfall():
         """The sol rolls over. Settings waiting for it go in force first, then the
@@ -380,8 +394,6 @@ def main():
 
         for e in pygame.event.get():
             if e.type == pygame.QUIT:
-                if mission_over():
-                    leave(True)
                 mode, typing, held = "quit", False, None
             if e.type == pygame.KEYUP and e.key == held:
                 held = None
@@ -393,11 +405,7 @@ def main():
             # The quit question outranks everything, including the text field, or
             # closing the window while mid-sentence would type into it.
             if mode == "quit":
-                if e.key == pygame.K_k:
-                    leave(True)
-                elif e.key == pygame.K_d:
-                    leave(False)
-                elif e.key == pygame.K_ESCAPE:
+                if not answer_quit(e):
                     mode = "world"
                 continue
 
@@ -500,8 +508,6 @@ def main():
                 elif e.key == pygame.K_v:
                     mode, scroll = "view", 0
                 elif e.key == pygame.K_ESCAPE:
-                    if mission_over():
-                        leave(True)
                     mode, held = "quit", None
 
             elif mode == "map":
@@ -532,7 +538,7 @@ def main():
         elif mode == "console":
             render.draw_console(game, w, fonts, line, history)
         elif mode == "quit":
-            render.draw_quit(game, w, fonts, run)
+            render.draw_quit(game, w, fonts, run, mission_over())
 
         # Pumped every frame now: the hold lives in `conv.ready` above, which stops the
         # next *request* rather than the whole loop. Streaming text keeps arriving while

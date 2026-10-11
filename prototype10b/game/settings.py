@@ -14,8 +14,8 @@ DAY_SECONDS = 300
 DAY_STEPS = 500
 
 TIME_SCALE = 1.0        # 2.0 makes the day run twice as fast
-# Sols in a mission. When the last one ends the run is kept and the app stops there.
-# 0 is no limit, and the run is kept or discarded at quit as before.
+# Sols in a mission. Once the last one ends N is refused, so the run stops there and
+# ESC asks whether to keep it. 0 is no limit.
 MISSION_SOLS = 0
 # Driving opens fog, a disc this wide around every cell reached, and it is the only thing
 # that does -- Ingenuity is cut, and a blind rover cannot answer the geology question by

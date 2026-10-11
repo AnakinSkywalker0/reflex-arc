@@ -440,10 +440,10 @@ def draw_console(surf, w, f, line, history):
     _foot(surf, f, box, "ENTER run    help for commands    T or ESC close")
 
 
-def draw_quit(surf, w, f, run):
+def draw_quit(surf, w, f, run, mission_over=False):
     """The one question asked at the end. Nothing is buffered waiting for the answer --
     the logs are already on disk and this only decides what happens to them."""
-    box = _panel(surf, f, "END OF SESSION",
+    box = _panel(surf, f, "MISSION OVER" if mission_over else "END OF SESSION",
                  f"sol {w.day}, {w.steps} steps driven, {w.elapsed:.0f}s elapsed", 4)
     where = run.dir.name if run else "nothing recorded"
     rows = [(f"  K   keep the logs      runs/{run.stamp if run else '--'}/", C.GOOD),
@@ -565,8 +565,7 @@ def draw_chat(surf, conv, w, f, line, focused, scroll, show_thinking=True, reel=
     elif conv.busy:
         state, tone = ("thinking..." if not conv.say_buf else "answering..."), C.CHAT_GOOD
     elif w.day_over and S.MISSION_SOLS and w.day >= S.MISSION_SOLS:
-        state, tone = (f"MISSION OVER after {w.day} sols  ·  ESC keeps the run and quits",
-                       C.CHAT_BAD)
+        state, tone = f"MISSION OVER after {w.day} sols  ·  ESC to finish", C.CHAT_BAD
     elif w.day_over:
         state, tone = f"SOL {w.day} OVER  ·  talk, then N for sol {w.day + 1}", C.CHAT_BAD
     elif conv.last:

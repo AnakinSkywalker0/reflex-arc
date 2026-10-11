@@ -136,8 +136,8 @@ SETTINGS = [
     Setting("MODEL_CTX", "choice", "sol", "context window in tokens; Ollama truncates "
             "silently past it", choices=(8192, 16384, 32768, 65536), replayed=False),
     Setting("OLLAMA_HOST", "str", "sol", "where the chat endpoint is", replayed=False),
-    Setting("MISSION_SOLS", "int", "sol", "sols in the mission; after the last the run "
-            "is kept and stops. 0 is no limit", 0, 30),
+    Setting("MISSION_SOLS", "int", "sol", "sols in the mission; after the last, N is "
+            "refused and ESC asks to keep the run. 0 is no limit", 0, 30),
     Setting("DAY_STEPS", "int", "sol", "steps in a sol: one per tile driven, plus the "
             "work", 30, 2000, 10),
     Setting("MOVE_HOPS", "int", "sol", "drives the model may make in one turn", 1, 50),
