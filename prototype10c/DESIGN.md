@@ -1,109 +1,123 @@
-# Prototype 10b — the base the team builds on
+# Prototype 10c — the rover works by itself
 
-10b is 10a with three things added: settings you change inside the app, a scratchpad you can watch
-fill up, and instructions that get a teammate's Linux machine running. Its job is to make the
-multi-sol tests cheap enough for the team to run, because no prototype has yet had a model play
-past sol 1. The UI team also works from here.
+10c is 10b with the rover left to work on its own. A mission clock runs each sol in place of the
+operator, the sol is a span of mission time, and the steps are a battery only the pad recharges.
+If the cloud model drops, a local one takes over, and a report is written from the record every
+night. The code was built in DA task 19 and lands here unchanged except for the fixes below. Next
+comes the comms system, which decides when you can talk to her at all.
 
-Everything not listed below is inherited unchanged and described in
-[`../prototype10a/DESIGN.md`](../prototype10a/DESIGN.md).
+Everything not listed here is inherited from [`../prototype10b/DESIGN.md`](../prototype10b/DESIGN.md)
+and [`../prototype10a/DESIGN.md`](../prototype10a/DESIGN.md). Setup and every key are in
+[`README.md`](README.md). 10b stays as it was, for the team's tests.
 
-**Built 11 Oct 2026.** Two things were added beyond this scope once Ishan had run it: ESC always
-asks before quitting, and a kept run can be resumed from the next sol (`--resume`). Setup and
-every key are in [`README.md`](README.md).
+## The sol runs on a clock, and the steps are a battery
 
-## Settings inside the app
+A sol is `DAY_SECONDS` on a mission clock. Two things run it down: her thinking, charged at the
+seconds each request actually took, and every step the rover takes, at `STEP_SECONDS` each. A slow
+model gets less done, which is Mars. The animation, the settle pause, the operator typing and the
+SPACE pause cost nothing, so a display setting never changes an outcome.
 
-There are 98 module constants today: 56 in `settings.py` and 42 in `config.py`. They are read at
-import time as `S.X` and `C.X`. The work is making the tunable ones changeable while the app runs.
-Palette and layout constants stay as code.
+The battery holds `BATTERY` steps (previously `DAY_STEPS`, the steps in a sol): one per tile
+driven, one per step of work. Looking and thinking are free. A flat battery does not end the sol,
+but nothing drives or works until the pad recharges it. On the design preset (150 charge, 200 s)
+the cloud 31B runs out of battery a little before the clock. A model slower than a few seconds a
+request runs out of sol first.
 
-**Every tunable goes in one registry.** Each entry has a name, a type, a range or a list of choices,
-a default, a one-line description and a **tier**:
+## Home before dark
 
-| tier | applies | examples |
+Only the pad recharges the battery, overnight, and the rover is home beside any side of it
+(`World.docked`). A sol that ends anywhere else strands the rover: no recharge, and it wakes where
+it stopped. A rover with less charge than the shortest possible trip back is lost
+(`World.lost`), and the mission ends that night. The view gives the pad's distance on every
+request, in charge and in seconds, and results warn when either runs short. A stranded night
+carries in `night.json`, so `--resume` wakes stranded too.
+
+## Nobody on shift
+
+`--auto` (`AUTOPILOT`) hands the operator's half of the sol to the clock (`autopilot.py`). The
+clock opens the sol with a turn of its own, and opens another turn whenever one ends without her
+choosing to stop. It closes the sol when she calls `end`, when the clock runs out, or after
+`AUTO_TURNS` turns. Then it asks for tomorrow's note and rolls the night over. Its lines are
+`auto` on the tape, never `you`, so a sol nobody coached can't be taken for one somebody did.
+
+- **With nobody there, `end` closes the sol.** The exception is an `end` sent after a cap
+  stopped the turn. That one gets a fresh turn, because the cap sent her to `end` and the first
+  unattended run lost 116 steps to it.
+- **C takes the rover over mid-sol, and C hands it back.** She is told who has the rover at her
+  next turn, and the prompt is swapped then.
+- **A request that never reached the model** is asked again after `AUTO_RETRY_SECONDS` and is
+  not counted as a turn.
+
+## The record and the report
+
+The world keeps what was finished, and on which sol, plus where each sol ended and on what
+charge. The view lists the finished work on every request. An unattended run once ended on a
+note saying nothing had been found, after all three objectives were done, because the view only
+listed open ones. `report.py` writes `report.md` from these records every nightfall and at the
+end. Her note goes underneath it, labelled as hers. The dusk turn asks her for judgement only,
+since the facts are the record's.
+
+## When the cloud drops
+
+`chat.Link` picks the model for the whole run. When a request to `MODEL` fails, the same request
+goes to `MODEL_FALLBACK` (`gemma4:e4b`, local) at once. A one-token probe tries `MODEL` every
+`PROBE_SECONDS`, and the first request after it answers goes back to the cloud. Each new sol
+starts with a probe. Every cost row names the model that answered. `--outage N` stages an outage
+for sol N through a port nothing listens on, and the tape marks it as staged.
+
+## Replay
+
+Replay re-issues a kept run's calls with no model, and halts if a result stops matching the tape.
+Two fixes landed in 10c:
+
+- **A sol she closed with time left is closed in the replay too.** Every call row carries
+  `over`, whether the sol was already over when the call ran. Before, a drive asked for at dusk
+  was refused live but ran in the replay, which then diverged.
+- **A turn ends in the replay where it ended live,** even with no `end`: a cap's refusals ended
+  it, or later an urgent call. Every call row carries its `turn`, and the replay ends the turn
+  idle at the same call. Otherwise the next turn's drive is refused against the old turn's
+  allowance.
+
+Tapes kept before these fields existed replay as before. The DA's two final-code runs replay with
+0 mismatches.
+
+**Headless runs.** SIGTERM keeps the run and exits. Before, SDL turned it into the
+keep-or-discard question, and a run with nobody to answer waited for ever. A run with no window
+is kept as `runs/<stamp>-headless/`.
+
+## Next in 10c: comms
+
+Decided on 13 Oct, and not built yet. Mission control can talk to her only when someone is at the
+desk:
+
+| | beside the pad | away from the pad |
 |---|---|---|
-| **now** | on the next frame | animation speeds, time scale, showing the model's thinking |
-| **next sol** | at the next nightfall | the model, steps per sol, storm settings, mission length |
-| **relaunch** | after a restart, and the app says so | the arena (30×30 or 50×50), tile size, window size |
+| **comms on**: someone will answer | normal talk, both ways | urgent only: U from us, `sos` from her |
+| **comms off**: she knows nobody is there | nothing | nothing |
 
-- **Defaults stay in code.** A person's changes live in a local file that git ignores, so a pull
-  never overwrites someone's settings.
-- **The settings screen is deliberately plain.** The UI team restyles it from the registry; they
-  do not rebuild it.
-- **The model is picked from what Ollama has installed.** Cloud models go through the machine's own
-  Ollama sign-in, so there is no key to enter. Gemini keys are deferred.
-- **Mission length is a new setting:** the number of sols after which the run stops, and ESC
-  asks whether to keep it. It is what turns a multi-sol test into one launch.
-- **Every run's log records the settings in force, and replay uses the log's settings,** never the
-  current ones. Otherwise changing a setting silently breaks every kept run.
-- **The 29 Sept recording values become a preset:** TILE 30, HUD_H 150, DAY_STEPS 500, MOVE_HOPS 20,
-  FREE_HOPS 10, CHAT_W 990, animation at half speed. 10b inherits them as its current values. The
-  design default for DAY_STEPS is 150, the value the 40/15/60 objective costs were balanced for.
-  Which set is the default has not been decided.
-
-## The scratchpad on screen
-
-A collapsible panel showing today's list as checkboxes. Items appear as the model adds them and
-tick as it strikes them. Under the list go the note that crosses the night and the operator's
-standing orders. One key toggles it. It should be the simplest thing that shows the list live, and
-the UI team makes it look good later.
-
-## Running it
-
-A README with setup for Linux, tested on this machine, and for Windows, written but untested until
-someone runs it there. It covers Python and the venv, `requirements.txt`, Ollama, `gemma4:e4b`
-pulled locally, and `ollama signin` for the cloud model.
-
-## Two tests that already fail
-
-Both fail identically in 10a, so they predate 10b:
-- `test_sight.py` dies with `KeyError: '1'`. The objective tiles `1`, `2` and `3` are missing from
-  the word table, the same cause that broke prototype 6.
-- In `test_skills.py`, the group "each gainless drive says so on its own" fails.
+At night beside the pad she reports, and the line stays open for 60 s of silence. An urgent call
+stops her after the call in hand. The clock always runs, so `--auto`, C-to-take-over and the
+operator-runs-every-sol mode go. 10b keeps that mode.
 
 ## For the team: start here
 
-10b has had one short session from Ishan and a lot of headless tests. No model has played it
-past sol 1. Your first job is to try to break it, then to run it for several sols. Work on a
-branch and open a pull request ([`../repo_rules.md`](../repo_rules.md)).
+Work on a branch and open a pull request ([`../repo_rules.md`](../repo_rules.md)). Follow
+[`README.md`](README.md); every suite in `game/` should pass.
 
-**1. Set it up and test it by hand.** Follow [`README.md`](README.md); every suite should pass.
-The tests drove the new features without a window, so check each one on screen:
-- **O, settings.** Change one setting from each group and check it lands when it says. A "next
-  sol" change shows up as a note in the pane when the next sol opens.
-- **P, the scratchpad.** It fills as the model calls `todo`, `strike` and `remember`, and when
-  you type `/orders ...`.
-- **ESC** always asks K / D / ESC, including while the HUD says ROVER DRIVING.
-- **`--resume runs/<stamp>`** wakes a kept run on the next sol, with its map, note and orders.
-- **`--replay runs/<stamp>`** plays a kept run to the end without "REPLAY DIVERGED".
-- **`--sols 2`** stops the run after sol 2.
+- **Run it unattended:** `--auto --sols 3`, on the **design** preset (`--preset design`), with
+  `gemma4:e4b` for the machinery. Anything that becomes a conclusion gets repeated on
+  `gemma4:31b-cloud`.
+- **Check what survives the night:** the map, the note, the orders, the finished objectives, and
+  a stranding. `report.md` in the run directory is the record. P shows her note.
+- **C mid-sol and back.** Type to her while you have the rover. That path is unit-tested only.
+- **`--resume runs/<stamp>`** wakes on the next sol. **`--replay runs/<stamp> --auto`** plays it
+  back without "REPLAY DIVERGED".
+- **Report each result with its n,** and with its run directory. The same script has given 31,
+  14 and 32 calls on one build.
 
-When something breaks, keep the run (K) and report it with the run's directory name. A
-`pending-` directory under `runs/` is a session that crashed.
+## Not in 10c
 
-**2. The multi-sol runs.** Load the **design** preset (a 150-step sol) on the settings screen,
-then launch with `--sols 3 --pause none` so nobody has to press SPACE at every leg. The model
-never opens a sol by itself: at the start of each sol, talk to it (TAB), or leave standing
-orders with `/orders` before pressing N. Everything it was sent and said is in
-`runs/<stamp>/chat.jsonl`, and each sol's settings are in `game.jsonl`.
-
-- **The first question is whether anything survives the night as designed.** That covers the map,
-  the note, the orders and the finished objectives. `world.next_day` says it keeps them, and no
-  model run has ever checked.
-- **Run 3 sols at 150 steps,** so something has to be put off. Read the note it leaves itself each
-  night; P shows it on screen.
-- **`gemma4:e4b` is fine for checking the machinery.** Anything that becomes a conclusion gets
-  repeated on `gemma4:31b-cloud`. In p2, e4b read cells right 44% of the time; see
-  [`../docs/findings.md`](../docs/findings.md).
-- **Report each result with its n.** The same script has given 31, 14 and 32 calls on one build.
-
-What memory and the scratchpad should become is decided from those runs, not before them.
-
-## Not in 10b
-
-- **The rover-bridge merge.** It is deferred until Ishan reviews it. The branch was written against
-  `prototype10/`, so its files will need to land in 10b by hand.
+- **The rover-bridge merge.** It is deferred until Ishan reviews it.
 - **Gemini keys, and a test on Windows.** Both are deferred.
-- **Full autonomy:** orders given once, several sols run unattended, then a report. That is
-  prototype 11.
+- **Orders given at launch.** An unattended run takes its orders from a resumed night or from
+  TAB. With none, she is told to explore.

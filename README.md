@@ -53,22 +53,29 @@ corrected. The overhead camera in [`ARCHITECTURE.md`](ARCHITECTURE.md) is supers
 
    Then the team runs the multi-sol tests. No model has yet played past sol 1, and those runs
    decide what memory and the scratchpad become. The project team takes UI and UX from 10b.
-3. **Prototype 11 — Ishan.** A Martian simulation game, scoped in its own conversation. On the
+3. **Prototype 10c, the rover by itself — autonomy landed 13 October; comms next.**
+   [`prototype10c/DESIGN.md`](prototype10c/DESIGN.md) covers:
+   - a mission clock that runs each sol, with a battery only the pad recharges;
+   - home before dark, or stranded;
+   - a local fallback when the cloud model drops;
+   - a report written from the record.
+
+   Next, the comms system: mission control talks to her only when someone is at the desk, from
+   the pad, or by urgent call when she is away from it.
+4. **Prototype 11 — Ishan.** A Martian simulation game, scoped in its own conversation. On the
    table:
    - a bigger map, with regions besides Jezero flats that each have their own hazards;
-   - a clock and a battery;
    - storms that move;
-   - missions that span several sols, with enough objectives that choosing between them matters;
-   - full autonomy: orders given once, several sols run unattended, then a report.
+   - missions that span several sols, with enough objectives that choosing between them matters.
 
    The LiDAR is enacted, not implemented. Slip is injected, the rover stops short, and the result
    says so with its own code, distinct from `BLOCKED`. Still being discussed:
    - **chunks:** 50×50 cells, each a small block, with hazards and objectives taking whole chunks;
    - **a scripted baseline** to compare decisions against;
    - **how the view scales.** The grid view costs about 1,200 tokens at 50×50.
-4. **Prototype 12 — hardware integration with the real LiDAR.** Owned by the team, with Koushik.
-   Whether it forks from 10b or from 11 is decided after 11.
-5. **Documentation overhaul — Ishan, after 11 is scoped.** Two levels: plain docs for people,
+5. **Prototype 12 — hardware integration with the real LiDAR.** Owned by the team, with Koushik.
+   Whether it forks from 10b, 10c or 11 is decided after 11.
+6. **Documentation overhaul — Ishan, after 11 is scoped.** Two levels: plain docs for people,
    technical or not, and deep docs for developers and AI.
 
 **Deferred:**
@@ -96,7 +103,8 @@ corrected. The overhead camera in [`ARCHITECTURE.md`](ARCHITECTURE.md) is supers
 | [`rover_ideas.md`](rover_ideas.md) | the rover in full — the reasoning, and what was already cut |
 | [`ARCHITECTURE.md`](ARCHITECTURE.md) | how the three layers fit together |
 | [`work_division.md`](work_division.md) | who owns what |
-| [`prototype10b/`](prototype10b/) | the current build — the simulation, the planner and the seam to the rover |
+| [`prototype10c/`](prototype10c/) | the current build — the rover working sols by itself; comms next |
+| [`prototype10b/`](prototype10b/) | the base the team is testing — the simulation, the planner and the seam to the rover |
 | [`prototype10a/`](prototype10a/) | prototype 10 frozen as the Angaraka recording ran it |
 | [`docs/findings.md`](docs/findings.md) | what prototypes 1–9 settled — read before changing how the model is spoken to |
 | [`archive/`](archive/) | prototypes 1–9, as a tarball |
