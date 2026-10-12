@@ -226,6 +226,13 @@ def test_nobody_on_shift_is_never_told_to_hand_back():
         if on:
             ok &= check("on: no note or refusal says hand back", "hand back" not in blob
                         and "crew" not in blob, blob[:200])
+            prompts.use(prompts.DEFAULT)
+            schema = skills.tools_for(["end"])[0]["function"]["description"]
+            for where, text in (("the end schema", schema), ("the prompt", prompts.SYSTEM)):
+                flat = " ".join(text.split())
+                ok &= check(f"on: {where} never says hand back or the crew",
+                            "hand back" not in flat and "hand the conversation" not in flat
+                            and "crew" not in flat)
             ok &= check("on: every one says the sol goes on",
                         all("the sol goes on" in x for x in said), str(said))
         else:
@@ -548,6 +555,79 @@ def test_a_replay_keeps_each_sols_calls_to_that_sol():
     return ok
 
 
+def live_then_replay(replies, sols=1):
+    """A live run on the clock, kept to a tape, then replayed from it with the clock on.
+    Returns (live world, live calls, replay world, replay)."""
+    keep = S.MISSION_SOLS
+    S.MISSION_SOLS = sols
+
+    def run(w, conv):
+        conv.open_day(w)
+        pilot = autopilot.Autopilot()
+        for t in range(200):
+            conv.pump()
+            if getattr(conv, "diverged", None):
+                break
+            if pilot.tick(conv, w, now=float(t)) == "night":
+                break
+        return conv
+
+    try:
+        with tempfile.TemporaryDirectory() as d:
+            tape = chat.Tape(Path(d) / "chat.jsonl")
+            w = World()
+            conv = run(w, Model(replies).talk(chat.Conversation(w, tape)))
+            tape.close()
+            w2 = World()
+            r = run(w2, replay.Replay(w2, replay.Script(Path(d))))
+    finally:
+        S.MISSION_SOLS = keep
+    return w, conv.calls, w2, r
+
+
+def test_a_drive_at_dusk_replays_as_refused():
+    """She closed the sol with time left, then asked for a drive in the dusk turn. Live
+    refuses it; the replay used to run it, and diverged."""
+    print("replay: a drive after the sol closed")
+    w, calls, w2, r = live_then_replay([
+        ("", [call("count", kind="rock")]), END,
+        ("", [call("remember", text="note")]),
+        ("", [call("goto", x=15, y=10)]), END])
+    drive = [c for c in calls if c.name == "goto"][0]
+    ok = check("live: the dusk drive was refused", drive.result.startswith("OUT_OF_TIME"),
+               drive.result)
+    ok &= check("and says the sol is over rather than that it ran out",
+                "already over" in drive.result and "ran out" not in drive.result)
+    ok &= check("the replay agrees, call for call", not r.diverged and
+                [c.result for c in r.calls if c.name != "end"]
+                == [c.result for c in calls if c.name != "end"], str(r.diverged))
+    ok &= check("and the rover is where the live one stopped", w2.pos == w.pos)
+    return ok
+
+
+def test_a_turn_the_cap_ended_replays_as_two():
+    """A turn ended by refusals rather than by `end`. The replay has to end it at the
+    same call, or the next turn's drive is refused against the old turn's allowance."""
+    print("replay: turn boundaries without an end")
+    keep = S.MOVE_HOPS, S.MOVE_GRACE
+    S.MOVE_HOPS, S.MOVE_GRACE = 1, 1
+    try:
+        w, calls, w2, r = live_then_replay([
+            ("", [call("goto", x=15, y=12)]),
+            ("", [call("goto", x=15, y=10)]),        # refused: the turn is ended for her
+            ("", [call("goto", x=18, y=12)]),        # the clock's next turn
+            ("", [call("goto", x=15, y=14)]), END])
+    finally:
+        S.MOVE_HOPS, S.MOVE_GRACE = keep
+    ok = check("live: two drives ran, in two turns",
+               [c.name for c in calls].count("goto") == 2, str([c.name for c in calls]))
+    ok &= check("the replay ran the same calls to the same results", not r.diverged and
+                [(c.name, c.result) for c in r.calls if c.name != "end"]
+                == [(c.name, c.result) for c in calls if c.name != "end"], str(r.diverged))
+    ok &= check("and ended where the live rover did", w2.pos == w.pos, f"{w2.pos} {w.pos}")
+    return ok
+
+
 if __name__ == "__main__":
     results = [test_the_clock_opens_the_sol(),
                test_her_end_closes_the_sol_and_dusk_asks_for_the_note(),
@@ -567,6 +647,8 @@ if __name__ == "__main__":
                test_thinking_runs_the_clock_and_the_tape_keeps_it(),
                test_a_replay_runs_on_the_tapes_clock(),
                test_flat_away_from_the_pad_ends_the_mission(),
-               test_a_replay_keeps_each_sols_calls_to_that_sol()]
+               test_a_replay_keeps_each_sols_calls_to_that_sol(),
+               test_a_drive_at_dusk_replays_as_refused(),
+               test_a_turn_the_cap_ended_replays_as_two()]
     print(f"\n{sum(results)}/{len(results)} groups passed")
     sys.exit(0 if all(results) else 1)

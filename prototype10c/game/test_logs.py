@@ -186,6 +186,20 @@ def test_every_record_survives_a_real_recorder():
     return ok
 
 
+def test_a_run_with_no_window_says_so_in_its_name():
+    print("headless runs are named as such")
+    with tempfile.TemporaryDirectory() as d:
+        run = logs.Run(Path(d), stamp="20261013-120000", headless=True)
+        ok = check("pending under the headless name",
+                   run.dir.name == "pending-20261013-120000-headless", run.dir.name)
+        kept = run.keep()
+        ok &= check("and kept under it", kept.name == "20261013-120000-headless", kept.name)
+        plain = logs.Run(Path(d), stamp="20261013-120001")
+        ok &= check("a run with a window is not", plain.dir.name == "pending-20261013-120001")
+        plain.discard()
+    return ok
+
+
 if __name__ == "__main__":
     S.DAY_MODE = "gemma"
     results = [test_a_run_is_on_disk_before_anyone_is_asked(),
@@ -194,6 +208,7 @@ if __name__ == "__main__":
                test_two_runs_in_the_same_second_do_not_collide(),
                test_the_game_log_carries_what_the_chat_log_cannot(),
                test_a_settled_run_stops_recording(),
-               test_every_record_survives_a_real_recorder()]
+               test_every_record_survives_a_real_recorder(),
+               test_a_run_with_no_window_says_so_in_its_name()]
     print(f"\n{sum(results)}/{len(results)} groups passed")
     sys.exit(0 if all(results) else 1)

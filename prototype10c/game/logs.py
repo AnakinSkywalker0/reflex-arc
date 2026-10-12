@@ -3,7 +3,7 @@
 Write first, decide afterwards -- buffering until the answer arrives would lose a crashed
 run silently. A run streams to `runs/pending-<stamp>/` from the first frame:
 
-    keep     ->  renamed to  runs/<stamp>/
+    keep     ->  renamed to  runs/<stamp>/     (<stamp>-headless/ with no window)
     discard  ->  deleted
     crash    ->  left as     runs/pending-<stamp>/
 
@@ -42,8 +42,10 @@ def load_night(run_dir):
 class Run:
     """One session's logs. Create it, hand `record` to the World, answer at the end."""
 
-    def __init__(self, runs_dir, stamp=None):
-        self.stamp = stamp or datetime.now().strftime("%Y%m%d-%H%M%S")
+    def __init__(self, runs_dir, stamp=None, headless=False):
+        # A run with no window says so in its name: those are tests, not sessions.
+        self.stamp = ((stamp or datetime.now().strftime("%Y%m%d-%H%M%S"))
+                      + ("-headless" if headless else ""))
         self.runs_dir = runs_dir
         self.dir = runs_dir / f"pending-{self.stamp}"
         self.dir.mkdir(parents=True, exist_ok=True)

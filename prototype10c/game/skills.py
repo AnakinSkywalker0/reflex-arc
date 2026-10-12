@@ -252,11 +252,10 @@ TOOLS = [
     {"type": "function", "function": {
         "name": "end",
         "description": (
-            "Hand the conversation back. Until you call this you are the only one "
-            "talking, so you can drive as long as you like -- one call at a time, "
-            "reading the map each time. Call it when you have finished what you were "
-            "asked, or when you want to check something with the crew. It ends your "
-            "turn; the system prompt says whether the sol ends with it."),
+            "End your turn. Until you call this you are the only one talking, so you "
+            "can drive as long as you like -- one call at a time, reading the map each "
+            "time. Call it when nothing left is worth doing now. The system prompt says "
+            "what happens after it, and whether the sol ends with it."),
         "parameters": {"type": "object", "properties": {
             "why": {"type": "string", "description":
                     "optional: one line on where you have got to"},

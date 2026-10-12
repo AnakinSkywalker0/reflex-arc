@@ -220,7 +220,7 @@ class Result:
     GOOD = {"DONE", "PLANNED"}
 
     def __init__(self, code, steps=0, at=None, stopped=None, beside=None, walls=(),
-                 new=None, planned=None):
+                 new=None, planned=None, closed=False):
         self.code = code
         self.steps = steps
         self.at = at
@@ -230,6 +230,8 @@ class Result:
         self.new = new
         # How long the route is, for a call that planned one and drove none of it.
         self.planned = planned
+        # OUT_OF_TIME because the sol was closed with time left, not because it ran out.
+        self.closed = closed
 
     @property
     def tone(self):
@@ -275,6 +277,9 @@ class Result:
         if self.beside:
             return (f"{_c(self.beside)} is solid, so stopping beside it IS "
                     f"arriving. Do not ask again.")
+        if self.code == "OUT_OF_TIME" and self.closed:
+            return ("the sol is already over, so the rover did not move. Unless it is "
+                    "beside the pad, it is stranded tonight.")
         if self.code == "OUT_OF_TIME":
             return ("the sol ran out on the way, so the rover stopped where it stands. "
                     "Unless that is beside the pad, it is stranded tonight.")
@@ -542,7 +547,7 @@ def goto(world, x, y, avoid=None, executor=None):
             # refuses a flat battery the same way it refuses rock, and the refusal below
             # would otherwise log the next cell as an outcrop.
             if world.day_over:
-                return done("OUT_OF_TIME")
+                return done("OUT_OF_TIME", closed=world.time_left > 0)
             if world.battery <= 0:
                 return done("BATTERY_FLAT")
 

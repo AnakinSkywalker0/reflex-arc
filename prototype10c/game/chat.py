@@ -254,6 +254,8 @@ class Conversation:
         self.bad_args = 0         # what the `why` requirement and the parser cost
         self.failures = 0         # requests that never got an answer. `autopilot` re-asks
         self.turn_by = None       # who opened the latest turn: "you", "auto", ... or nobody
+        self.turn = 0             # turns opened today. On every call row, so a replay can
+                                  # end its turns where the live run's ended
         self.junk = 0             # template tokens stripped out of what it said
         self._t0 = 0.0
         self._tools_sent = None   # ...and which schemas the request carried. A capped
@@ -281,6 +283,7 @@ class Conversation:
             return False
         self._on_shift()
         self.turn_by = who
+        self.turn += 1
         self.write(who, text.strip())
         self.messages.append({"role": "user", "content": text.strip()})
         self.hops = self.moves = self.frees = 0
@@ -740,8 +743,9 @@ class Conversation:
             self.frees += 1
         # The clock as the call found it, for the tape. Replay sets it back from here,
         # because a replay has no thinking to charge and the drive must stop where the
-        # live one did.
-        clock = self.world.time_left
+        # live one did. Whether the sol was already over goes with it: a sol she closed
+        # with time left is closed by her `end`, which the clock alone cannot show.
+        clock, over = self.world.time_left, self.world.day_over
         c = skills.call(self.world, fn.get("name"), _args(fn.get("arguments")),
                         history=self.calls)
         self.calls.append(c)
@@ -751,7 +755,8 @@ class Conversation:
         # re-issues these calls with no model in the loop, and a call parsed back out
         # of its own display string is exactly the worse record `write` warns about.
         self.write("call", f"{c}   why: {c.why or '--'}",
-                   name=c.name, args=c.args, ran=True, clock=clock)
+                   name=c.name, args=c.args, ran=True, clock=clock, over=over,
+                   turn=self.turn)
         self.write("result", c.result)
         self.messages.append({"role": "tool", "tool_name": c.name,
                               "content": c.result + skills.budget_note(self.world,

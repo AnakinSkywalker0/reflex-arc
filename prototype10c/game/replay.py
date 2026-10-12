@@ -84,8 +84,11 @@ class Script:
                 # is the next `result` row and not a search.
                 expect = next((n.get("text") for n in chat_rows[i + 1:i + 3]
                                if n.get("who") == "result"), None)
+                # `turn` and `over` are absent on tapes kept before they were written,
+                # and those replay as they always did.
                 self.turns.append({"day": r.get("day"), "name": r.get("name"),
                                    "args": r.get("args") or {}, "clock": r.get("clock"),
+                                   "over": r.get("over"), "turn": r.get("turn"),
                                    "said": " ".join(said).strip(), "expect": expect})
                 said = []
 
@@ -168,6 +171,11 @@ class Replay(chat.Conversation):
         super().__init__(world, tape)
         self.script = script
         self.diverged = None
+        self._tape_turn = None    # the live turn this replay turn is playing
+
+    def send(self, text, who="you"):
+        self._tape_turn = None
+        return super().send(text, who)
 
     @property
     def holds_sol(self):
@@ -191,7 +199,17 @@ class Replay(chat.Conversation):
         `_answer`: `_run` calls `_want` straight after `_answer` returns, so a `_stop`
         raised down there is immediately undone by the next request being asked for.
         This is the only point in the loop where refusing to speak actually stops it.
+
+        **A live turn that ended without `end`** -- a cap, an urgent call -- ends here at
+        the same call, with nothing said and nothing called, so the next turn starts with
+        its allowances back as the live one did.
         """
+        t = None if self.diverged else self.script.peek()
+        if (t is not None and (t["day"] is None or t["day"] <= self.day)
+                and self._tape_turn is not None and t["turn"] is not None
+                and t["turn"] != self._tape_turn):
+            self.q.put(("done", ({"done": True}, [])))
+            return
         turn = None if self.diverged else self.script.next_turn(self.day)
         if turn is None:
             self.q.put(("say", "The replay stopped here." if self.diverged else
@@ -203,6 +221,8 @@ class Replay(chat.Conversation):
             self.q.put(("say", turn["said"]))
         self._expect = turn["expect"]
         self._clock = turn["clock"]
+        self._over = turn["over"]
+        self._tape_turn = turn["turn"]
         self.q.put(("done", ({"done": True},
                              [{"name": turn["name"], "arguments": turn["args"]}])))
 
@@ -225,6 +245,10 @@ class Replay(chat.Conversation):
         self._clock = None
         if clock is not None:
             self.world.set_clock(clock)
+        # A sol she closed with time left: the clock would not close it, the tape does.
+        if getattr(self, "_over", None):
+            self.world.day_over = True
+        self._over = None
         super()._answer(fn, move, counts)
         got = self.calls[-1].result
         want = getattr(self, "_expect", None)

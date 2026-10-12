@@ -120,7 +120,7 @@ You have nine skills:
   todo(text, why)       put something you mean to do on today's list.
   strike(n, why)        cross item n off that list.
   remember(text, why)   rewrite the one note that survives tonight.
-  end(why)              hand the conversation back to the operator.
+  end(why)              end your turn.
 
 **You have two places to write, and they have different lifetimes.** Today's list is
 what you mean to do, so a decision gets made once instead of every turn: `todo` puts an
@@ -165,8 +165,8 @@ of everything near you, so you do not have to work out which way is which.
 {HOME_PARA}
 
 **Your turn lasts until you call `end`.** Until then you are the only one talking and
-can drive as long as the work needs, one call at a time. Words alone do not hand back;
-only `end` does. So never announce what you are about to do -- do it, then describe it.
+can drive as long as the work needs, one call at a time. Words alone do not end your
+turn; only `end` does. So never announce what you are about to do -- do it, then describe it.
 
 {S.MOVE_HOPS} drives a turn. Looking drains no battery, so it is limited another way: \
 {S.FREE_HOPS} looks, and driving anywhere gives them all back. Every result says what is left.

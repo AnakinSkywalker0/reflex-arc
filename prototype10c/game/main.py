@@ -41,7 +41,9 @@ No human-only mode: the planner is the point.
 
 import argparse
 import hashlib
+import os
 import pathlib
+import signal
 import sys
 import time
 
@@ -179,7 +181,13 @@ def main():
     # The run starts recording immediately. Whether it is kept is asked at the end;
     # see logs.py for why that order and not the other one.
     runs = pathlib.Path(__file__).resolve().parent.parent / "runs"
-    run = logs.Run(runs)
+    run = logs.Run(runs, headless=os.environ.get("SDL_VIDEODRIVER") == "dummy")
+
+    # SIGTERM keeps the run and exits. SDL would turn it into a window-close, which asks
+    # K / D / ESC -- and a headless run has nobody to answer, so it waited for ever.
+    # Installed after the window opens, so this replaces SDL's handler.
+    term = []
+    signal.signal(signal.SIGTERM, lambda *_: term.append(True))
 
     def log_settings(sol):
         """Every setting in force, and a hash of the prompt they built, once a sol.
@@ -262,7 +270,7 @@ def main():
             run.save_report(report.build(w))
         tape.close()
         if keep:
-            print(f"kept {run.keep()}")
+            print(f"kept {run.keep()}", flush=True)
         else:
             run.discard()
         pygame.quit()
@@ -341,6 +349,8 @@ def main():
         asking = False      # ESC asks the same keep-or-discard question as anywhere else
         try:
             while True:
+                if term:
+                    leave(True)
                 for e in pygame.event.get():
                     if e.type == pygame.QUIT:
                         asking = True
@@ -467,6 +477,8 @@ def main():
         return f"{st.name} {registry.show(v)} -- {registry.TIER_NAMES[st.tier]}"
 
     while True:
+        if term:
+            leave(True)
         dt = clock.tick(C.FPS) / 1000.0
         now = pygame.time.get_ticks()
 
