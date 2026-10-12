@@ -1,6 +1,6 @@
 """World state. No pygame in here -- this is the part the planner drives.
 
-An arena, fog, a rover, a day and a step budget. Result strings are the failure codes
+An arena, fog, a rover, a sol on a clock and a battery. Result strings are the failure codes
 prototype 1 arrived at, and the human sees the same strings the model does.
 """
 
@@ -285,8 +285,9 @@ class World:
         self.pos = C.SPAWN
         self.day = 1
         self.day_over = False
-        self.time_left = float(S.DAY_SECONDS)
-        self.steps = 0
+        self.time_left = float(S.DAY_SECONDS)   # the mission clock, or the wall clock
+        self.battery = S.BATTERY                # in steps. Only the pad recharges it
+        self.steps = 0          # taken today, for the record. The battery is what binds
         self.elapsed = 0.0      # stopwatch. Runs in both modes and is shown in both,
                                 # because it is the measurement the clock needs
         self.history = []       # one record per finished day
@@ -306,9 +307,17 @@ class World:
         self.revealed = set()   # what the last move opened up, for the playback
         self.reel = []          # finished drives waiting to be drawn. See anim.py
         self.survey = Survey()  # formation ids, carried across the whole expedition
+        # Every objective finished on this expedition, with the sol it was done on. The
+        # objective itself leaves the map when it is done, so without this nothing she
+        # can see says the work happened -- and the only place left to keep it was her
+        # note, which is how two reports came to say no objective was ever found.
+        self.finished = []
         # Her own writing. The list dies at nightfall and the memory does not, which is
         # the only difference between the two stores; `notes.py` says why.
         self.notes = notes.Notes()
+        # Whether last night caught the rover away from the pad. Stranded means no
+        # recharge: it wakes where it stopped, on what was left. See `next_day`.
+        self.stranded = False
         if carried:
             self._restore(carried)
             self._morning()
@@ -317,13 +326,27 @@ class World:
         # The landing site is visible on arrival. You can see where you came down.
         self.here.reveal(*self.pos, r=S.BASE_REVEAL)
         self._arrive()
-        self.record("day_open", at=self.pos, steps_left=self.steps_left)
+        self.record("day_open", at=self.pos, battery=self.battery, clock=self.time_left)
 
     @property
     def area(self):
         """One arena, so this is a constant -- but nav, sight and the logs all name
         the place they are talking about, and item 3 puts weather on top of it."""
         return self.here.name
+
+    @property
+    def pad(self):
+        """Every pad cell. Solid, so the rover is home when it is beside one."""
+        a = self.here
+        return {(x, y) for y in range(a.h) for x in range(a.w) if a.at(x, y) == "H"}
+
+    @property
+    def docked(self):
+        """Beside the pad, which is where it recharges overnight. Any side of any pad
+        cell: `goto` at the pad stops beside whichever cell the route reaches first, and
+        a rule stricter than where `goto` parks would strand a rover that did go home."""
+        x, y = self.pos
+        return bool({(x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)} & self.pad)
 
     @property
     def base(self):
@@ -374,8 +397,8 @@ class World:
     # --- time ------------------------------------------------------------
     def tick(self, dt):
         """Wall clock. In human mode it runs the day down. In gemma mode it only
-        watches, so we can log how long the model actually took without charging it
-        for thinking -- which is the number item 4 has to be designed against."""
+        watches: the mission clock is run down by `charge`, at what her thinking and the
+        rover's steps cost, and never by the frame rate."""
         dt *= S.TIME_SCALE
         self.elapsed += dt
         if S.DAY_MODE != "human":
@@ -386,32 +409,77 @@ class World:
             self.day_over = True
 
     def spend(self, n=1):
-        """One world-changing action. In gemma mode the day is made of these."""
+        """`n` steps of driving or work: off the battery, and off the mission clock."""
         self.steps += n
-        if S.DAY_MODE == "human":
+        self.battery = max(0, self.battery - n)
+        if S.DAY_MODE != "human":
+            self.charge(n * S.STEP_SECONDS)
+
+    def charge(self, seconds):
+        """Run the mission clock down. Her thinking comes in here from `chat`, at the
+        seconds each request took, and so does every step from `spend`.
+
+        Rounded to the millisecond so the value written on the tape is the value the
+        world held -- replay sets the clock from the tape, and a drive that stops on its
+        last step must stop there on both.
+        """
+        if S.DAY_MODE == "human" or seconds <= 0:
             return
-        if self.steps >= S.DAY_STEPS:
+        self.time_left = max(0.0, round(self.time_left - seconds, 3))
+        if self.time_left <= 0:
+            self.day_over = True
+
+    def set_clock(self, seconds):
+        """Replay's door: the clock as the tape says it stood. It can end the sol and
+        never reopen one -- a sol the clock in the live run had not closed may have been
+        closed by her `end`, and that is the tape's to say, not the clock's."""
+        self.time_left = seconds
+        if seconds <= 0:
             self.day_over = True
 
     @property
     def steps_left(self):
-        return max(0, S.DAY_STEPS - self.steps)
+        """Steps the rover can still take today: what the battery holds, or what the
+        clock has room for, whichever runs out first."""
+        if S.DAY_MODE == "human" or S.STEP_SECONDS <= 0:
+            return self.battery
+        return min(self.battery, int(self.time_left / S.STEP_SECONDS + 1e-9))
+
+    @property
+    def lost(self):
+        """Away from the pad with less charge than the shortest trip back could take.
+
+        Not "flat": the first unattended run to strand with 2 charge 23 steps out sat
+        there sensibly spending nothing, and with `lost` meaning a battery at nought the
+        mission never ended -- sixteen empty sols and counting. The trip is a floor (fog
+        counted as clear, the storm left out because it blows out), so short of it no
+        route will ever get the rover home, and nothing but the pad recharges it.
+        """
+        if self.docked:
+            return False
+        import nav      # nav imports world; by the time anyone asks, both are loaded
+        back = nav.home_steps(self, storm=False)
+        return back is None or self.battery < back
 
     def next_day(self):
-        """The rover wakes at the pad. Everything it has mapped carries over; the
-        message log does not -- yesterday's messages are noise once the day is shut.
+        """The night. Everything it has mapped carries over; the message log does not
+        -- yesterday's messages are noise once the day is shut.
 
         Her list goes with them and `notes.memory` does not. That one line is what the
         write path is for: the conversation, the reasoning and the day's plan are all
         gone by morning, so the doc is the only thing she can hand herself.
 
-        It returns to base for free, which is half of item 2 already standing. What
-        that item adds is the *consequence* of not being here at nightfall, not the
-        journey.
+        **Where the night finds the rover decides the morning.** Beside the pad, the
+        battery recharges and it wakes there full. Anywhere else it is stranded: no
+        recharge, so it wakes where it stopped on whatever charge it had left, and if
+        that is none it is `lost`. That is item 2 -- the journey home was always free,
+        and now not making it costs something.
         """
-        self.history.append({"day": self.day, "steps": self.steps,
-                             "seconds": round(self.elapsed, 1)})
-        self.record("day_close", steps=self.steps, seconds=round(self.elapsed, 1))
+        self.history.append(self._sol_record())
+        self.stranded = not self.docked
+        self.record("day_close", steps=self.steps, seconds=round(self.elapsed, 1),
+                    at=self.pos, stranded=self.stranded, battery=self.battery,
+                    clock=self.time_left)
         self.day += 1
         self._morning()
 
@@ -427,17 +495,28 @@ class World:
         self.last_path = ("", [])
         self.last_walk = ("", [])
         self.reel.clear()       # nobody wants to watch yesterday's drive
-        self.pos = C.SPAWN
+        if not self.stranded:
+            self.pos = C.SPAWN  # woken at the pad
+            self.battery = S.BATTERY
         self._weather()         # yesterday's storm has blown out; today gets its own
         self._arrive()
-        self.record("day_open", at=self.pos, steps_left=self.steps_left)
+        self.record("day_open", at=self.pos, battery=self.battery,
+                    clock=self.time_left, stranded=self.stranded)
+
+    def _sol_record(self):
+        """How a sol ended, for `history` and so for the report: the facts of it, kept
+        by the world rather than left to anyone's account of them."""
+        return {"day": self.day, "steps": self.steps, "seconds": round(self.elapsed, 1),
+                "at": list(self.pos), "docked": self.docked, "battery": self.battery}
 
     # --- across sessions -------------------------------------------------
     def carry(self):
         """What the night keeps, as JSON: enough to wake on the next sol in a new session.
 
-        Quitting mid-sol counts the sol as played. Position, the list, the storm and the
-        step count are not here because the morning resets all four anyway.
+        Quitting mid-sol counts the sol as played, and where the rover stands is where
+        the night finds it, so quitting away from the pad strands it. The list, the
+        storm and the step count are not here because the morning resets all three. The
+        battery is, because a stranded morning does not.
         """
         a, sv = self.here, self.survey
         cells = lambda cs: sorted([x, y] for x, y in cs)
@@ -449,8 +528,9 @@ class World:
                            "size": sorted([f, n] for f, n in sv.size.items()),
                            "merges": [list(m) for m in sv.merges], "next": sv._next},
                 "memory": self.notes.memory, "orders": self.notes.orders,
-                "history": self.history + [{"day": self.day, "steps": self.steps,
-                                            "seconds": round(self.elapsed, 1)}]}
+                "pos": list(self.pos), "stranded": not self.docked,
+                "battery": self.battery, "finished": self.finished,
+                "history": self.history + [self._sol_record()]}
 
     def _restore(self, c):
         """The inverse of `carry`, leaving the world at the night after `c["day"]`."""
@@ -467,6 +547,12 @@ class World:
         sv.merges = [tuple(m) for m in c["survey"]["merges"]]
         sv._next = c["survey"]["next"]
         self.notes.memory, self.notes.orders = c["memory"], c["orders"]
+        # Older nights have neither: those rovers all woke at the pad.
+        self.pos = tuple(c.get("pos") or C.SPAWN)
+        self.stranded = bool(c.get("stranded", False))
+        # Older nights have no battery: those rovers woke on a full sol, charged or not.
+        self.battery = int(c.get("battery", S.BATTERY))
+        self.finished = list(c.get("finished", []))
         self.history = list(c["history"])
         self.day = c["day"] + 1
 
@@ -482,8 +568,10 @@ class World:
         The live objectives, not `C.OBJECTIVES` -- an objective the operator placed last
         night is as buriable as an authored one, and reading the config would protect
         only the three that shipped."""
+        # From where the rover woke, which is the pad unless last night stranded it: a
+        # storm on a stranded rover would be the one the docstring above rules out.
         self.here.storm = hazards.spawn_for_day(
-            self.here, self.day, C.SPAWN,
+            self.here, self.day, self.pos,
             keep_clear=(self.base, *self.here.objectives))
         if self.here.storm:
             s = self.here.storm
@@ -568,8 +656,8 @@ class World:
     def execute(self, o):
         """Do the work at `o`, charging its cost. Returns the steps actually spent.
 
-        Charged before the objective is marked done, so a sol that runs out mid-task
-        still pays for what it used -- the day ending is not a refund.
+        Charged before the objective is marked done, so a battery or a sol that runs out
+        mid-task still pays for what it used -- running out is not a refund.
         """
         spent = min(o.cost, self.steps_left)
         self.spend(spent)
@@ -577,6 +665,8 @@ class World:
             return spent                # ran out of day; the work is not finished
         o.done = True
         del self.here.objectives[o.cell]   # the instrument is packed up and gone
+        self.finished.append({"sol": self.day, "at": list(o.cell),
+                              "priority": o.priority, "cost": o.cost})
         # No `day=` here: `record` stamps it. Passing it again is a TypeError that only
         # fires on a live run, because every test world has `recorder=None`.
         self.record("objective", at=o.cell, priority=o.priority, cost=o.cost)
@@ -585,7 +675,7 @@ class World:
     # --- movement --------------------------------------------------------
     def move(self, dx, dy):
         x, y = self.pos[0] + dx, self.pos[1] + dy
-        if self.here.blocked(x, y):
+        if self.here.blocked(x, y) or self.battery <= 0:
             return
         self.pos = (x, y)
         self._arrive()

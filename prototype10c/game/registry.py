@@ -122,11 +122,18 @@ SETTINGS = [
             "tape keeps it either way", replayed=False),
     Setting("TIME_SCALE", "float", "now", "how fast the elapsed clock runs",
             0.25, 8.0, 0.25, replayed=False),
+    # The viewer's own on a replay: who opens the turns changes nothing on the tape.
+    Setting("AUTOPILOT", "bool", "now", "nobody on shift: each sol opens, runs and rolls "
+            "over by itself, and the run is kept when the mission is over. C in the app "
+            "switches it for this run only", replayed=False),
     Setting("ROVER_PAUSE", "choice", "now", "key: press SPACE when the rover has driven "
             "each leg. none: do not wait", choices=("key", "none"), replayed=False),
     # --- the next sol ------------------------------------------------------
     Setting("MODEL", "str", "sol", "the planner: any model Ollama has, cloud ones "
             "through this machine's Ollama sign-in", replayed=False),
+    Setting("MODEL_FALLBACK", "str", "now", "answers when the planner's model cannot, "
+            "until it is back; the same model as the planner turns it off",
+            replayed=False),
     Setting("MODEL_THINK", "bool", "sol", "a reasoning trace before each answer; slower",
             replayed=False),
     Setting("MODEL_TEMP", "choice", "sol", "sampling temperature",
@@ -138,8 +145,14 @@ SETTINGS = [
     Setting("OLLAMA_HOST", "str", "sol", "where the chat endpoint is", replayed=False),
     Setting("MISSION_SOLS", "int", "sol", "sols in the mission; after the last, N is "
             "refused and ESC asks to keep the run. 0 is no limit", 0, 30),
-    Setting("DAY_STEPS", "int", "sol", "steps in a sol: one per tile driven, plus the "
-            "work", 30, 2000, 10),
+    Setting("AUTO_TURNS", "int", "sol", "turns the mission clock opens in a sol before "
+            "it calls the sol itself", 1, 30),
+    Setting("DAY_SECONDS", "int", "sol", "seconds in a sol on the mission clock, which "
+            "her thinking and every step run down", 30, 3600, 10),
+    Setting("STEP_SECONDS", "float", "sol", "seconds one tile driven, or one step of "
+            "work, takes on the mission clock", 0.0, 10.0, 0.25),
+    Setting("BATTERY", "int", "sol", "the battery, in steps: one per tile driven, plus "
+            "the work. Only the pad recharges it", 30, 2000, 10),
     Setting("MOVE_HOPS", "int", "sol", "drives the model may make in one turn", 1, 50),
     Setting("FREE_HOPS", "int", "sol", "looks it may make between drives", 1, 30),
     Setting("MOVE_GRACE", "int", "sol", "drives refused past the cap before the turn "
@@ -175,13 +188,14 @@ SETTINGS = [
 ]
 BY_NAME = {s.name: s for s in SETTINGS}
 
-# The 29 Sept recording is what 10b ships with. The design set is what the 40/15/60
+# The 29 Sept recording is what 10b and 10c ship with. The design set is what the 40/15/60
 # objective costs were balanced for. Which should be the default is undecided.
 PRESETS = {
-    "29 Sept recording": {"TILE": 30, "HUD_H": 150, "DAY_STEPS": 500, "MOVE_HOPS": 20,
-                          "FREE_HOPS": 10, "CHAT_W": 990, "ANIM_SPEED": 0.5},
-    "design": {"TILE": 17, "HUD_H": 110, "DAY_STEPS": 150, "MOVE_HOPS": 10,
-               "FREE_HOPS": 5, "CHAT_W": 1000, "ANIM_SPEED": 1.0},
+    "29 Sept recording": {"TILE": 30, "HUD_H": 150, "BATTERY": 500, "DAY_SECONDS": 600,
+                          "MOVE_HOPS": 20, "FREE_HOPS": 10, "CHAT_W": 990,
+                          "ANIM_SPEED": 0.5},
+    "design": {"TILE": 17, "HUD_H": 110, "BATTERY": 150, "DAY_SECONDS": 200,
+               "MOVE_HOPS": 10, "FREE_HOPS": 5, "CHAT_W": 1000, "ANIM_SPEED": 1.0},
 }
 
 
@@ -290,7 +304,7 @@ def from_log(game_rows):
     if out:
         return out
     legacy = {"map_format": "MAP_FORMAT", "vision": "VISION_RADIUS",
-              "replans": "NAV_REPLANS", "day_steps": "DAY_STEPS", "todo_max": "TODO_MAX",
+              "replans": "NAV_REPLANS", "day_steps": "BATTERY", "todo_max": "TODO_MAX",
               "memory_chars": "MEMORY_CHARS"}
     for r in game_rows:
         if r.get("kind") == "run":

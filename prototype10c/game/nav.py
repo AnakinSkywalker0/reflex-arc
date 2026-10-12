@@ -275,6 +275,13 @@ class Result:
         if self.beside:
             return (f"{_c(self.beside)} is solid, so stopping beside it IS "
                     f"arriving. Do not ask again.")
+        if self.code == "OUT_OF_TIME":
+            return ("the sol ran out on the way, so the rover stopped where it stands. "
+                    "Unless that is beside the pad, it is stranded tonight.")
+        if self.code == "BATTERY_FLAT":
+            return ("the battery is flat, so the rover stopped where it stands and "
+                    "cannot move again. Only the pad recharges it, and only if the sol "
+                    "ends with the rover beside it.")
         if self.code == "STORM_BLOCKED":
             return (f"the dust storm is across the only way there. It is not rock and "
                     f"it is not your doing: it blows out at the end of the sol and the "
@@ -531,8 +538,13 @@ def goto(world, x, y, avoid=None, executor=None):
         wall = None
         leg_start = len(walk) - 1
         for cell in path[1:]:
+            # Checked before the move rather than read off it afterwards: `world.move`
+            # refuses a flat battery the same way it refuses rock, and the refusal below
+            # would otherwise log the next cell as an outcrop.
             if world.day_over:
-                return done("OUT_OF_STEPS")
+                return done("OUT_OF_TIME")
+            if world.battery <= 0:
+                return done("BATTERY_FLAT")
 
             was_pos, was_steps = world.pos, world.steps
             world.move(cell[0] - was_pos[0], cell[1] - was_pos[1])
@@ -616,6 +628,38 @@ def price(world, x, y, avoid=None):
     _log(world, world.area, world.pos, (x, y), steps,
          Result("UNREACHABLE" if steps is None else "DISTANCE"))
     return steps
+
+
+def home_steps(world, storm=True):
+    """Steps back to the pad over the known map, 0 when already beside it, None if no
+    route exists. A floor, like every planned route: fog is assumed clear.
+
+    `storm=False` leaves today's storm out, for asking whether the rover can *ever* get
+    home: the storm blows out at the end of the sol, so it cannot strand anyone for good.
+
+    Breadth-first to the nearest cell beside *any* pad cell, which is what `docked`
+    counts as home. Planning to `world.base` would measure to one corner of a six-cell
+    pad and overstate the trip. Not `price` either: that draws the route and logs a
+    call, and this is asked on every view.
+    """
+    if world.docked:
+        return 0
+    area, pad = world.here, world.pad
+    avoid = with_storm(area, ()) if storm else frozenset()
+    seen, frontier, steps = {world.pos}, [world.pos], 0
+    while frontier:
+        steps += 1
+        nxt = []
+        for cell in frontier:
+            for n in _around(cell):
+                if n in seen or not _passable(area, n, avoid):
+                    continue
+                if set(_around(n)) & pad:
+                    return steps
+                seen.add(n)
+                nxt.append(n)
+        frontier = nxt
+    return None
 
 
 def distance(world, x, y, avoid=None):

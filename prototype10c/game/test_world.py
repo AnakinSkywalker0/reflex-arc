@@ -249,26 +249,86 @@ def test_the_sol_rolls_over():
 
     w.next_day()
     assert w.day == day + 1 and w.steps == 0 and not w.day_over
-    assert w.pos == C.SPAWN, "the rover wakes at the pad"
+    assert w.pos == (10, 10), "away from the pad at nightfall, it wakes where it stopped"
+    assert w.stranded and w.battery == S.BATTERY - 37, "on what it had left: no recharge"
+    assert w.time_left == float(S.DAY_SECONDS), "but the clock is a new sol's"
     assert w.elapsed == 0.0
     assert len(w.here.seen) >= seen, "the survey carries over"
     assert (10, 10) in w.here.marks, "and so do the marks"
     assert not w.log, "yesterday's messages do not"
-    assert w.history[-1] == {"day": day, "steps": steps, "seconds": 12.5}
+    assert w.history[-1] == {"day": day, "steps": steps, "seconds": 12.5, "at": [10, 10],
+                             "docked": False, "battery": S.BATTERY - 37}, \
+        "and how the sol ended is the world's record, not anyone's account of it"
 
 
-def test_gemma_mode_counts_steps():
+def test_home_by_nightfall():
+    w = World()
+    assert w.docked, "the rover lands beside the pad"
+    w.pos = (15, 18)                       # south of the pad, not where it landed
+    assert w.docked, "any side of the pad is home"
+    w.spend(40)
+    w.next_day()
+    assert not w.stranded and w.pos == C.SPAWN, "woken at the pad"
+    assert w.battery == S.BATTERY, "recharged"
+
+    w.pos = (3, 3)
+    w.spend(30)
+    w.next_day()
+    w.spend(20)
+    w.next_day()
+    assert w.stranded and w.pos == (3, 3), "stranded twice, still where it stopped"
+    assert w.battery == S.BATTERY - 50, "and nothing came back either night"
+
+
+def test_flat_away_from_the_pad_is_lost():
+    w = World()
+    w.pos = (3, 3)
+    w.spend(w.battery)
+    assert w.battery == 0 and w.lost, "flat, and out on the plain"
+    before = w.pos
+    w.move(1, 0)
+    assert w.pos == before and w.steps == S.BATTERY, "a flat rover does not move"
+    w.next_day()
+    assert w.battery == 0 and w.lost, "and no morning brings it back"
+
+    w = World()
+    w.pos = (3, 3)
+    w.battery = 2
+    assert w.lost, "two charge and the pad twenty-odd steps off is lost, though not flat"
+    w.battery = 40
+    assert not w.lost, "enough for the trip back is only stranded"
+
+    w = World()
+    w.spend(w.battery)
+    assert not w.lost, "flat beside the pad is not lost"
+    w.next_day()
+    assert w.battery == S.BATTERY, "the pad charges it"
+
+
+def test_gemma_mode_runs_on_the_mission_clock():
     assert S.DAY_MODE == "gemma", "these tests run in the mode the game ships in"
     w = World()
-    assert w.steps_left == S.DAY_STEPS
-    w.spend(S.DAY_STEPS - 1)
-    assert not w.day_over and w.steps_left == 1
-    w.spend()
-    assert w.day_over and w.steps_left == 0
+    assert w.time_left == float(S.DAY_SECONDS) and w.battery == S.BATTERY
+    w.spend(10)
+    assert w.battery == S.BATTERY - 10, "steps drain the battery"
+    assert w.time_left == S.DAY_SECONDS - 10 * S.STEP_SECONDS, "and take time"
+    w.charge(2.5)
+    assert w.time_left == S.DAY_SECONDS - 10 * S.STEP_SECONDS - 2.5, "thinking takes time"
+    assert w.battery == S.BATTERY - 10, "and no charge"
 
     w.tick(9.0)
     assert w.elapsed == 9.0, "the stopwatch runs even though it charges nothing"
-    assert w.time_left == float(S.DAY_SECONDS), "and the clock is not the budget"
+    assert w.time_left == S.DAY_SECONDS - 10 * S.STEP_SECONDS - 2.5, \
+        "and the frame rate is not the mission clock"
+
+    w.charge(w.time_left)
+    assert w.day_over and w.time_left == 0.0, "the clock ends the sol"
+    assert w.battery > 0, "with charge to spare, which the battery does not do"
+
+    w = World()
+    w.spend(w.battery)
+    assert w.battery == 0 and not w.day_over, "a flat battery does not end the sol"
+    assert w.steps_left == 0, "but nothing more can be driven in it"
 
 
 def test_human_mode_still_counts_seconds():

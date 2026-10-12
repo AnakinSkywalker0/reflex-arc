@@ -222,12 +222,54 @@ def test_the_status_line_survived_the_move():
     print("the morning line")
     w = World()
     line = sight.status_line(w)
-    ok = check("has the four facts", all(bit in line for bit in
-               ("day 1", "steps left", "at (15,15)", "base pad at")), line)
+    ok = check("has the five facts", all(bit in line for bit in
+               ("day 1", "seconds of the sol left", "battery", "at (15,15)",
+                "base pad at")), line)
     ok &= check("one line", "\n" not in line)
     ok &= check("and the view carries it", line in sight.view(w))
-    ok &= check("it says steps, because steps are what a sol is made of",
-                "steps left" in line, line)
+    ok &= check("it says seconds, because a sol is made of time now",
+                f"{S.DAY_SECONDS} seconds" in line, line)
+    return ok
+
+
+def test_the_view_says_how_far_home_is():
+    print("home by nightfall")
+    w = World()
+    ok = check("at the landing site it says the rover is home",
+               "You are beside the pad" in sight.view(w))
+    w.pos = (15, 10)
+    v = sight.view(w)
+    ok &= check("five rows north, it says the pad is at least five steps off",
+                "The pad is at least 5 steps away" in v, sight.home(w)[0])
+    ok &= check("and what being caught out there costs", "stranded" in v)
+    w.next_day()
+    ok &= check("after a night out there it says there was no recharge",
+                "was not recharged" in sight.view(w))
+    return ok
+
+
+def test_finished_work_stays_in_view():
+    """Two reports said no objective had ever been found, after all three were done:
+    a finished objective left the map, and with it every trace that it had been done."""
+    print("the record, not her memory")
+    w = World()
+    o = w.objectives[1]
+    w.pos = (o.cell[0], o.cell[1] - 1)
+    w.here.reveal(*w.pos)
+    w.execute(o)
+    w.next_day()
+    v = sight.view(w)
+    ok = check("the next sol's view lists it, with the sol it was done on",
+               "WORK FINISHED ON THIS MISSION" in v
+               and f"({o.cell[0]},{o.cell[1]}), {o.cost} steps of work -- finished on "
+                   f"sol 1" in v, str(sight.finished(w)))
+    for other in w.objectives:
+        other.done = True
+    w.here.objectives.clear()
+    v = sight.view(w)
+    ok &= check("with everything found finished, it never says none were found",
+                "You have not found any objectives yet" not in v
+                and "Every objective you have found is finished" in v)
     return ok
 
 
@@ -260,6 +302,8 @@ if __name__ == "__main__":
                test_the_grid_has_one_door_onto_the_world(),
                test_decoration_never_reaches_the_view(),
                test_the_status_line_survived_the_move(),
+               test_the_view_says_how_far_home_is(),
+               test_finished_work_stays_in_view(),
                test_the_view_stays_affordable()]
     print(f"\n{sum(results)}/{len(results)} groups passed")
     sys.exit(0 if all(results) else 1)

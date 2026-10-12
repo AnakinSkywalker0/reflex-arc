@@ -66,7 +66,7 @@ def test_defaults_are_the_code():
     ok &= check("every setting has a known tier",
                 all(s.tier in registry.TIERS for s in registry.SETTINGS))
     ok &= check("names are unique", len(registry.BY_NAME) == len(registry.SETTINGS))
-    # 10b ships the recording's numbers, so the preset must describe what is shipped.
+    # 10c ships the recording's numbers, so the preset must describe what is shipped.
     rec = registry.PRESETS["29 Sept recording"]
     ok &= check("the shipped values are the 29 Sept recording",
                 all(registry.BY_NAME[k].default == v for k, v in rec.items()),
@@ -80,9 +80,9 @@ def test_only_changes_are_saved():
     print("the user file holds only what differs")
     with Sandbox() as sb:
         p = sb.prefs()
-        p.set("DAY_STEPS", 150)
-        ok = check("a change is written", sb.saved() == {"DAY_STEPS": 150}, str(sb.saved()))
-        p.set("DAY_STEPS", registry.BY_NAME["DAY_STEPS"].default)
+        p.set("BATTERY", 150)
+        ok = check("a change is written", sb.saved() == {"BATTERY": 150}, str(sb.saved()))
+        p.set("BATTERY", registry.BY_NAME["BATTERY"].default)
         ok &= check("setting it back to the default removes it", sb.saved() == {},
                     str(sb.saved()))
         p.set("ANIM_SPEED", 2)
@@ -100,12 +100,12 @@ def test_each_tier_lands_when_it_says():
         p.set("ANIM_SPEED", 2.0)
         ok = check("now: in force straight away", S.ANIM_SPEED == 2.0)
 
-        before = S.DAY_STEPS
-        p.set("DAY_STEPS", 150)
-        ok &= check("next sol: not in force mid-sol", S.DAY_STEPS == before)
-        ok &= check("...but shown as the value", p.shown(registry.BY_NAME["DAY_STEPS"]) == 150)
+        before = S.BATTERY
+        p.set("BATTERY", 150)
+        ok &= check("next sol: not in force mid-sol", S.BATTERY == before)
+        ok &= check("...but shown as the value", p.shown(registry.BY_NAME["BATTERY"]) == 150)
         done = p.nightfall()
-        ok &= check("...and in force after nightfall", S.DAY_STEPS == 150, str(done))
+        ok &= check("...and in force after nightfall", S.BATTERY == 150, str(done))
         ok &= check("...once", p.pending == {})
 
         p.set("MODEL", "gemma4:e4b")
@@ -127,7 +127,7 @@ def test_bad_values_are_refused():
     print("bad values")
     with Sandbox() as sb:
         p = sb.prefs()
-        for name, v in (("DAY_STEPS", 5), ("DAY_STEPS", "lots"), ("MAP_FORMAT", "png"),
+        for name, v in (("BATTERY", 5), ("BATTERY", "lots"), ("MAP_FORMAT", "png"),
                         ("STORM_ON", 1), ("MODEL", "  ")):
             try:
                 p.set(name, v)
@@ -137,7 +137,7 @@ def test_bad_values_are_refused():
             if not check(f"{name}={v!r} refused", refused):
                 return False
         ok = check("and nothing was saved", sb.saved() == {})
-        sb.path.write_text('{"DAY_STEPS": 99999, "NOT_A_SETTING": 1, "VISION_RADIUS": 3}')
+        sb.path.write_text('{"BATTERY": 99999, "NOT_A_SETTING": 1, "VISION_RADIUS": 3}')
         q = sb.prefs()
         ok &= check("a hand-edited file keeps what is valid", q.user == {"VISION_RADIUS": 3},
                     str(q.user))
@@ -161,9 +161,9 @@ def test_the_prompt_states_the_settings():
 
 def test_replay_uses_the_logs_settings():
     print("replay takes the kept run's values")
-    rows = [{"kind": "settings", "sol": 1, "values": {"DAY_STEPS": 150, "TILE": 9,
+    rows = [{"kind": "settings", "sol": 1, "values": {"BATTERY": 150, "TILE": 9,
                                                       "MODEL": "elsewhere"}},
-            {"kind": "settings", "sol": 2, "values": {"DAY_STEPS": 300}}]
+            {"kind": "settings", "sol": 2, "values": {"BATTERY": 300}}]
     with Sandbox() as sb, tempfile.TemporaryDirectory() as d:
         run = Path(d)
         (run / "game.jsonl").write_text("\n".join(json.dumps(r) for r in rows))
@@ -171,16 +171,16 @@ def test_replay_uses_the_logs_settings():
         script = replay.Script(run)
         tile, model = C.TILE, S.MODEL
         script.use_settings(1)
-        ok = check("sol 1's world settings", S.DAY_STEPS == 150)
+        ok = check("sol 1's world settings", S.BATTERY == 150)
         ok &= check("the viewer keeps their own window", C.TILE == tile)
         ok &= check("...and nothing about the model is taken", S.MODEL == model)
         script.use_settings(2)
-        ok &= check("sol 2's own", S.DAY_STEPS == 300)
+        ok &= check("sol 2's own", S.BATTERY == 300)
         ok &= check("nothing was saved as the viewer's", not sb.path.exists())
         legacy = registry.from_log([{"kind": "run", "day_steps": 150, "vision": 2,
                                      "arena": "50x50", "model": "x"}])
         ok &= check("tapes from before the registry are read too",
-                    legacy == {1: {"DAY_STEPS": 150, "VISION_RADIUS": 2,
+                    legacy == {1: {"BATTERY": 150, "VISION_RADIUS": 2,
                                    "APP_ARENA": "50"}}, str(legacy))
     return ok
 
@@ -209,7 +209,7 @@ def test_the_screens_draw():
         items = [("preset", k) for k in registry.PRESETS] + \
                 [("setting", s) for s in registry.SETTINGS]
         p = sb.prefs()
-        p.set("DAY_STEPS", 150)
+        p.set("BATTERY", 150)
         screen = pygame.Surface((1200, 500))
         for i in range(len(items)):
             render.draw_settings(screen, f, items, i, p, None, "", None, False)

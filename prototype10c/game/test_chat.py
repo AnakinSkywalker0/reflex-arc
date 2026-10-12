@@ -130,10 +130,10 @@ PROMISED = {
 # `hazards.py` has the class and one object in it, and a prompt describing the second
 # kind would be inventing it. `read_notes`/`write_notes` came off it when the write path
 # landed as `todo`/`strike`/`remember`; `mark(` stays, which is why `avoid="auto"` is
-# still refused.
+# still refused. `battery` came off it when the step budget became one.
 UNBUILT = ("look(", "interact(", "play(", "buy(", "mark(",
            "end_day(", "fly(", "photograph(", "Ingenuity",
-           "sandstorm", "quake", "battery", "sample", "before dark", "nightfall the rover")
+           "sandstorm", "quake", "sample", "before dark", "nightfall the rover")
 
 
 def test_every_prompt_promises_exactly_what_exists():
@@ -734,6 +734,37 @@ def test_error_does_not_wedge():
     return ok
 
 
+def test_an_error_in_the_stream_is_an_error():
+    """A cloud model with the cloud down comes back from local Ollama as an `error`
+    line, not a failed status. Read as nothing, the turn waited for a `done` for ever."""
+    print("ollama says no")
+    import urllib.request
+    ok = True
+    for lines, why in (([b'{"error":"model unavailable"}'], "an error line"),
+                       ([b'{"message":{"content":"half"}}'], "a stream with no done")):
+        c = chat.Conversation(World())
+
+        class FakeResponse:
+            def __enter__(self):
+                return iter(lines)
+
+            def __exit__(self, *a):
+                return False
+
+        real = urllib.request.urlopen
+        urllib.request.urlopen = lambda req, timeout=None: FakeResponse()
+        try:
+            c._stream([{"role": "user", "content": "hi"}])
+        finally:
+            urllib.request.urlopen = real
+        got = []
+        while not c.q.empty():
+            got.append(c.q.get()[0])
+        ok &= check(f"{why} ends in an error, not a wait", got and got[-1] == "error",
+                    str(got))
+    return ok
+
+
 def test_the_tape_keeps_the_view_the_pane_drops():
     print("the tape")
     w = World()
@@ -813,6 +844,7 @@ if __name__ == "__main__":
                test_hiding_the_reasoning_is_a_display_choice_only(),
                test_template_tokens_never_reach_the_context(),
                test_full_context_is_shouted(), test_error_does_not_wedge(),
+               test_an_error_in_the_stream_is_an_error(),
                test_the_tape_keeps_the_view_the_pane_drops(),
                test_the_tape_says_what_each_response_cost()]
     print(f"\n{sum(results)}/{len(results)} groups passed")

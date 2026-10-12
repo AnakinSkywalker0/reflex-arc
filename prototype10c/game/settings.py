@@ -1,22 +1,47 @@
 """Every knob worth turning. None of them are tuned."""
 
 # --- the day ---------------------------------------------------------------
-# "gemma": a day is DAY_STEPS actions. "human": a day is DAY_SECONDS of wall clock.
-# A wall clock for gemma is deferred -- it would make every run depend on machine speed.
+# "gemma": a sol is DAY_SECONDS on the mission clock, and two things run it down: her
+# thinking, charged at the seconds each request actually took, and every step the rover
+# takes, at STEP_SECONDS each. If she thinks slowly she gets less done, which is Mars.
+# Nothing else moves it -- not the animation, the settle pause, the operator typing or
+# the SPACE pause -- so a display setting can never change what happens, and replay can
+# set the clock from the tape at every call and land on the same run.
+# "human": a sol is DAY_SECONDS of wall clock, for driving by hand.
 DAY_MODE = "gemma"
-DAY_SECONDS = 300
-# One per tile driven, and it finally binds. Getting across the 30 is about 30 steps and
-# the objectives cost 40, 15 and 60, so the dearest one plus the drive to it is about 90
-# of the 150: one objective a sol with room left to explore, and a second only by giving
-# up the exploring. That trade is the balancing pass every prototype before this deferred.
-# 500 is the 29 Sept recording's value, and it breaks that balance. `registry.PRESETS`
-# holds both sets; which one is the default has not been decided.
-DAY_STEPS = 500
+# The cloud 31B answers in about a second, so a 150-step sol of it thinks for 20-30s
+# and drives for 150: the battery binds a little before the clock. A model taking more
+# than a few seconds a request runs out of sol first. 600 is the 500-step sol's value;
+# `registry.PRESETS` holds both sets.
+DAY_SECONDS = 600
+STEP_SECONDS = 1.0      # one tile driven, or one step of work, on the mission clock
+# The battery, in steps: one per tile driven and one per step of work. The pad charges
+# it overnight, and only the pad -- a rover stranded away from it wakes on whatever it
+# had left, and one that runs flat away from it is lost.
+# Getting across the 30 is about 30 steps and the objectives cost 40, 15 and 60, so the
+# dearest one plus the drive to it is about 90 of 150: one objective a charge with room
+# left to explore, and a second only by giving up the exploring. 500 is the 29 Sept
+# recording's value, and it breaks that balance. Which is the default is undecided.
+BATTERY = 500
 
 TIME_SCALE = 1.0        # 2.0 makes the day run twice as fast
 # Sols in a mission. Once the last one ends N is refused, so the run stops there and
 # ESC asks whether to keep it. 0 is no limit.
 MISSION_SOLS = 0
+# Nobody on shift. On, the mission clock opens every sol with a turn of its own, keeps
+# the planner going until it calls `end` or the day runs out, asks it for tomorrow's note,
+# and rolls the night over -- so `--auto --sols 3` is three sols from one launch with no
+# key pressed, and the run is kept at the end. Off, the operator opens and closes every
+# sol, as in the recording. `autopilot.py`.
+AUTOPILOT = False
+# Turns the clock may open in one sol before it calls the sol itself. A turn ends when
+# she calls `end` or a cap ends it for her; this is what stops a planner that only ever
+# hits the cap, or only ever answers in prose, from holding a sol open for good.
+AUTO_TURNS = 6
+# A request that never reached the model is asked again after this long rather than
+# counted as a turn. Counted, a dropped connection overnight would play out every
+# remaining sol in seconds with nobody talking.
+AUTO_RETRY_SECONDS = 30.0
 # Driving opens fog, a disc this wide around every cell reached, and it is the only thing
 # that does -- Ingenuity is cut, and a blind rover cannot answer the geology question by
 # driving, which is the only way it is meant to be answered.
@@ -48,7 +73,16 @@ MAP_FORMAT = "grid"
 # editing this file, and `gemma4:e4b` is the local fallback that always answers.
 # Measured on a 6 GB RTX 3050: e4b runs ~20 tokens/sec, 3.6 GB VRAM, flat to 16k.
 MODEL = "gemma4:31b-cloud"
+# When a request to MODEL fails, the same request goes here at once, and the run stays
+# here until a probe of MODEL answers again (`chat.Link`). The same as MODEL turns it off.
 MODEL_FALLBACK = "gemma4:e4b"
+PROBE_SECONDS = 30      # how often MODEL is tried while the fallback answers
+PROBE_TIMEOUT = 15      # a probe is one token; this long without one is still down
+# Sols on which MODEL is unreachable, on purpose: its requests and probes go to a port
+# nothing listens on, so the real connection-refused path runs. For showing the fallback
+# without taking a real outage. `main.py --outage N`.
+OUTAGE_SOLS = ()
+OUTAGE_HOST = "http://127.0.0.1:9/api/chat"
 OLLAMA_HOST = "http://localhost:11434/api/chat"
 MODEL_CTX = 16384       # Ollama defaults to 4096 and truncates silently. Never unset.
 MODEL_THINK = False     # measured: ~46s a turn and no better at reading the grid

@@ -275,12 +275,10 @@ def _x_mark(surf, rect):
 
 
 def budget(w):
-    """Whichever thing the day is actually made of. One wording, changed in one place
-    when the clock lands."""
-    if S.DAY_MODE == "human":
-        mins, secs = divmod(max(0, int(w.time_left)), 60)
-        return f"{mins}:{secs:02d}"
-    return f"{w.steps_left} steps"
+    """The clock and the battery. One wording, in one place."""
+    mins, secs = divmod(max(0, int(w.time_left)), 60)
+    return (f"{mins}:{secs:02d}    battery {w.battery}/{S.BATTERY}"
+            + ("  (stranded)" if w.stranded else ""))
 
 
 def _hud(surf, w, f, reel=None):
@@ -305,8 +303,9 @@ def _hud(surf, w, f, reel=None):
             "WASD drive   M map   X mark   T console   ")
     surf.blit(f.tiny.render(hint + "TAB talk   H thinking   Q end sol   ESC quit",
                             True, C.FAINT), (MARGIN, y0 + 84))
-    surf.blit(f.tiny.render("O settings   P scratchpad", True, C.FAINT),
-              (MARGIN, y0 + 100))
+    surf.blit(f.tiny.render("O settings   P scratchpad   C "
+                            + ("take over" if S.AUTOPILOT else "hand to the clock"),
+                            True, C.FAINT), (MARGIN, y0 + 100))
 
     # The rover is out on the floor driving a leg and everything here is held until it
     # is done. Say what it was given, or the operator is being asked to confirm
@@ -466,6 +465,8 @@ CHAT_INDENT = 14
 # reads better than one carrying a tag on line one.
 HEADS = {"status": ("SOL OPEN", C.CHAT_GOOD),
          "you": ("OPERATOR", C.CHAT_OPERATOR),
+         # Not the operator's colour: nobody coached a sol the clock opened.
+         "auto": ("MISSION CLOCK", C.CHAT_GOOD),
          "gemma": ("PLANNER", C.CHAT_PLANNER),
          "think": ("PLANNER · reasoning", C.CHAT_THINK),
          "error": ("!!", C.CHAT_BAD),
@@ -553,7 +554,9 @@ def draw_chat(surf, conv, w, f, line, focused, scroll, show_thinking=True, reel=
     head_h, foot_h = 66, 56
 
     surf.blit(f.big.render("MISSION PLANNER", True, C.CHAT_TEXT), (x, 14))
-    sub = f"{S.MODEL}   ·   sol {conv.day}"
+    link = conv.link
+    sub = (f"{link.model}{'  (fallback)' if link.down else ''}   ·   sol {conv.day}   ·   "
+           + ("nobody on shift" if S.AUTOPILOT else "operator on shift"))
     if not show_thinking:
         sub += "   ·   reasoning hidden"
     surf.blit(f.tiny.render(sub, True, C.CHAT_MUTED), (x, 40))
@@ -561,14 +564,25 @@ def draw_chat(surf, conv, w, f, line, focused, scroll, show_thinking=True, reel=
     # The held state gets its own word. Without it the pane reads "ready" for the
     # several seconds the planner is deliberately sitting still, which looks like a
     # hang rather than the round trip it is.
-    if conv.waiting or (reel and reel.busy and conv.busy):
+    if conv.waiting and conv.link.hold:
+        state, tone = f"checking whether {S.MODEL} is back...", C.CHAT_SKILL
+    elif conv.waiting or (reel and reel.busy and conv.busy):
         state, tone = "waiting for the rover...", C.CHAT_SKILL
     elif conv.busy:
         state, tone = ("thinking..." if not conv.say_buf else "answering..."), C.CHAT_GOOD
+    elif w.day_over and w.lost:
+        state, tone = (f"ROVER LOST on sol {w.day}  ·  cannot reach the pad  ·  "
+                       + ("keeping the run" if S.AUTOPILOT else "ESC to finish"),
+                       C.CHAT_BAD)
     elif w.day_over and S.MISSION_SOLS and w.day >= S.MISSION_SOLS:
-        state, tone = f"MISSION OVER after {w.day} sols  ·  ESC to finish", C.CHAT_BAD
+        state = (f"MISSION OVER after {w.day} sols  ·  "
+                 + ("keeping the run" if S.AUTOPILOT else "ESC to finish"))
+        tone = C.CHAT_BAD
     elif w.day_over:
-        state, tone = f"SOL {w.day} OVER  ·  talk, then N for sol {w.day + 1}", C.CHAT_BAD
+        state = (f"SOL {w.day} OVER  ·  "
+                 + (f"sol {w.day + 1} opens by itself" if S.AUTOPILOT else
+                    f"talk, then N for sol {w.day + 1}"))
+        tone = C.CHAT_BAD
     elif conv.last:
         secs, pin, pout = conv.last
         state, tone = f"{secs}s   {pin} tok in, {pout} out", C.CHAT_MUTED

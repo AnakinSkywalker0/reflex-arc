@@ -134,7 +134,8 @@ TOOLS = [
             "Drive to a cell in the arena. Coordinates are ABSOLUTE cells on the map "
             "in your view, never offsets from where you stand -- to move ten cells "
             "south, add ten to your own y and pass that. One call drives the whole "
-            "way, however far it is, one step per tile out of the day's budget. "
+            "way, however far it is: each tile is one step off the battery and a "
+            "little of the sol's time. "
             "It plans over the map you have seen and assumes unseen ground is clear, "
             "so rock you have never met will stop you: that is not a bug, it is how "
             "the map fills in, and the rock you hit comes back in the answer. Aiming "
@@ -156,7 +157,7 @@ TOOLS = [
             "How many steps a goto to this cell would cost, without walking it and "
             "without spending anything. Optimistic: it assumes every unseen cell is "
             "clear, so the real walk can only come out the same or longer. Use it to "
-            "price a trip before committing the day's steps to it."),
+            "price a trip before committing battery and time to it."),
         "parameters": {"type": "object", "properties": {
             "x": {"type": "integer", "description": "absolute column"},
             "y": {"type": "integer", "description": "absolute row"},
@@ -255,7 +256,7 @@ TOOLS = [
             "talking, so you can drive as long as you like -- one call at a time, "
             "reading the map each time. Call it when you have finished what you were "
             "asked, or when you want to check something with the crew. It ends your "
-            "turn, not the sol: the day runs until the steps do."),
+            "turn; the system prompt says whether the sol ends with it."),
         "parameters": {"type": "object", "properties": {
             "why": {"type": "string", "description":
                     "optional: one line on where you have got to"},
@@ -565,15 +566,20 @@ def _execute(world):
                 f"goto stops you alongside it, which is arriving.")
 
     if world.day_over:
-        return (f"OUT_OF_STEPS -- the {o.priority}-priority objective at "
-                f"({o.cell[0]},{o.cell[1]}) needs {o.cost} steps and the day is over. "
+        return (f"OUT_OF_TIME -- the {o.priority}-priority objective at "
+                f"({o.cell[0]},{o.cell[1]}) needs {o.cost} steps and the sol is over. "
                 f"Nothing was spent. It will still be there tomorrow.")
+    if world.battery <= 0:
+        return (f"BATTERY_FLAT -- the {o.priority}-priority objective at "
+                f"({o.cell[0]},{o.cell[1]}) needs {o.cost} steps and the battery is "
+                f"flat. Nothing was spent.")
 
     spent = world.execute(o)
     if not o.done:
+        why = ("the battery ran flat" if world.battery <= 0 else "the sol ran out")
         return (f"UNFINISHED(at=({o.cell[0]},{o.cell[1]}), steps={spent}) -- the work "
-                f"needs {o.cost} steps and the day ran out after {spent}. The objective "
-                f"is not done and the steps are gone. Start it earlier tomorrow.")
+                f"needs {o.cost} steps and {why} after {spent}. The objective is not "
+                f"done and those steps are gone. Start it with more in hand.")
     rest = [p for p in left if p is not o]
     tail = (" Nothing else is left to do." if not rest else
             " Still to do: " + ", ".join(
@@ -679,7 +685,9 @@ def call(world, name, args, history=()):
         # The turn is ended by `chat`, which is the only thing that knows what a turn
         # is. Here it is a call like any other so that it lands on the tape in order
         # with the rest, rather than as an event beside them.
-        c.result = "END -- your turn is over and the crew can speak again."
+        # One wording whoever is on shift. Replay compares results, and who is on shift
+        # is the viewer's choice there; what `end` did to the sol is the prompt's to say.
+        c.result = "END -- your turn is over."
         return c
 
     if name == "count":
@@ -724,17 +732,21 @@ def call(world, name, args, history=()):
                     f"unseen cell is clear" if steps is None else
                     f"DISTANCE(to=({x},{y}), steps>={steps}) -- planned as though the "
                     f"fog were clear, so the drive takes at least that many steps and "
-                    f"more if there is rock in the way. You have {world.steps_left} "
-                    f"steps left today")
+                    f"more if there is rock in the way. {_left_today(world)}")
 
     c.steps = world.steps - before
     c.result += _stuck(c, list(history))
     return c
 
 
+def _left_today(world):
+    return (f"The battery holds {world.battery} steps and the sol has "
+            f"{world.time_left:.0f} seconds left.")
+
+
 def budget_note(world, hops=""):
-    """Handed back with a result when the day is spent, because OUT_OF_STEPS on its own
-    reads as a failure of the call rather than the end of the day.
+    """Handed back with a result when the sol or the battery is spent, because
+    OUT_OF_TIME on its own reads as a failure of the call rather than the end of the day.
 
     `hops` is what is left of the turn's allowance, and it rides on *every* result
     rather than only on the last one. A cap she is told about only once she has hit it
@@ -743,8 +755,21 @@ def budget_note(world, hops=""):
     """
     out = hops
     if world.day_over:
-        out += (" The day is over -- you have no steps left. Anything that costs "
-                "steps will refuse from here.")
-    elif world.steps_left < S.DAY_STEPS // 10:
-        out += f" Only {world.steps_left} steps left today."
+        out += (" The sol is over. Anything that drives or works will refuse from here.")
+        return out
+    if world.battery <= 0:
+        out += (" The battery is flat. Nothing that drives or works can run, and only "
+                "the pad recharges it.")
+        return out
+    # The warning about getting home comes while there is still time to act on it:
+    # within a tenth of a charge, or a tenth of a sol, of what the trip back costs.
+    # Thinking runs the clock too, so the time margin has to cover more than the drive.
+    back = nav.home_steps(world)
+    low_b = world.battery <= (back or 0) + S.BATTERY // 10
+    low_t = world.time_left <= (back or 0) * S.STEP_SECONDS + S.DAY_SECONDS / 10
+    if back and (low_b or low_t):
+        out += (f" {_left_today(world)} The pad is at least {back} steps away. Head "
+                f"back now, or the rover is stranded tonight.")
+    elif low_b or low_t:
+        out += f" {_left_today(world)}"
     return out

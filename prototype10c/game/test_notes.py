@@ -160,8 +160,7 @@ def test_a_write_is_a_look_and_never_costs_a_step():
 
     # The buzzer must not lock her out of her own notes: a `goto` that spends the last
     # step used to end the sol with the whole day unwritten.
-    w.steps = S.DAY_STEPS
-    w.day_over = True
+    w.charge(w.time_left)
     late = skills.call(w, "remember", {"text": "written after the steps ran out"})
     ok &= check("and a spent day can still be written up",
                 late.result.startswith("REMEMBERED("), late.result)

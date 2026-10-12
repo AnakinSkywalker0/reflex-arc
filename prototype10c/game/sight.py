@@ -80,6 +80,7 @@ HALLMARKS = ("WHAT YOU CAN SEE RIGHT NOW",
              "IMMEDIATELY AROUND YOU",
              "WHAT YOU KNOW IS HERE",
              "OBJECTIVES YOU HAVE FOUND",
+             "WORK FINISHED ON THIS MISSION",
              # Her own writing is rendered by us and so can be forged by her. A list
              # she wrote into a reply would read back as struck items she never struck.
              "YOUR LIST FOR TODAY",
@@ -95,14 +96,42 @@ def status_line(w):
     Also the morning message, so there is one wording rather than two -- the same
     reason `Result.__str__` serves the console and the model at once.
 
-    It says "steps" because steps are what the day is actually made of today. When
-    the clock lands (item 4) this line is where the word changes, and it changes in
-    exactly one place.
+    The clock has landed (item 4), so this is where the word changed: a sol is made of
+    seconds now, and steps are what the battery holds.
     """
     bx, by = w.base
-    return (f"day {w.day}  |  {w.steps_left} steps left  |  "
+    return (f"day {w.day}  |  {w.time_left:.0f} seconds of the sol left  |  "
+            f"battery {w.battery} of {S.BATTERY} steps  |  "
             f"at ({w.pos[0]},{w.pos[1]}) on the {w.area}  |  "
             f"base pad at ({bx},{by})")
+
+
+def home(w):
+    """Where the night will find the rover, said every request. The pad is the only
+    place it recharges, so the trip back is part of every plan from the first drive.
+    `world.next_day` holds the rule; this is its wording."""
+    out = []
+    if w.stranded:
+        out.append("Last night the rover was stranded away from the pad, so the battery "
+                   "was not recharged.")
+    if w.docked:
+        out.append("You are beside the pad. End the sol here and the battery recharges "
+                   "overnight: tomorrow starts full, from the pad.")
+        return out
+    if w.lost:
+        out.append(f"The rover is lost: the battery holds {w.battery} steps, less than "
+                   f"the shortest possible trip back to the pad, and nothing but the pad "
+                   f"recharges it. The mission ends when this sol does.")
+        return out
+    back = nav.home_steps(w)
+    trip = (f"The pad is at least {back} steps away: that much battery, and at least "
+            f"{back * S.STEP_SECONDS:.0f} seconds of the sol." if back is not None else
+            "There is no known route back to the pad.")
+    out.append(f"You are away from the pad. {trip} If the sol ends with the rover "
+               f"anywhere but beside the pad it is stranded: no recharge, so tomorrow "
+               f"it wakes where it stopped on whatever charge is left. If the charge falls "
+               f"below what the trip back needs, the rover is lost.")
+    return out
 
 
 def _ruler(width):
@@ -270,6 +299,16 @@ def objectives(w):
     return out
 
 
+def finished(w):
+    """Every objective finished on this expedition, and the sol it was finished on.
+
+    The world's record, put in front of her on every request, so that what got done is
+    never something she has to remember. Her note is for what the view cannot say.
+    """
+    return [f"{f['priority']} priority at {_c(tuple(f['at']))}, {f['cost']} steps of "
+            f"work -- finished on sol {f['sol']}" for f in w.finished]
+
+
 def todo_list(w):
     """Her own list, in the order she wrote it, struck items and all.
 
@@ -399,6 +438,7 @@ def view(w):
     seen = sum(1 for y in range(a.h) for x in range(a.w) if nav.known(a, x, y) is not None)
     known = things(w)
     todo = objectives(w)
+    done = finished(w)
     return "\n".join([
         "--- WHAT YOU CAN SEE RIGHT NOW ---",
         "This block is rewritten from scratch every time you are called. It is always "
@@ -406,6 +446,7 @@ def view(w):
         "it against.",
         "",
         status_line(w),
+        *home(w),
         f"The {a.name} is {a.w} cells wide and {a.h} tall, and you have seen "
         f"{seen} of its {a.w * a.h} cells. {AXES}",
         f"The rover sees {S.VISION_RADIUS} cells in every direction as it drives, and "
@@ -421,10 +462,16 @@ def view(w):
         "You have not yet seen anything here but regolith and rock.",
         *(f"  {t}" for t in known),
         "",
+        # The empty state has to know about finished work. Once everything found was
+        # done it used to say none had ever been found, and she reported exactly that.
         "OBJECTIVES YOU HAVE FOUND" if todo else
+        "Every objective you have found is finished. Any others are still under the "
+        "fog." if done else
         "You have not found any objectives yet. They are out there under the fog.",
         *(f"  {t}" for t in todo),
         "",
+        *(["WORK FINISHED ON THIS MISSION", *(f"  {t}" for t in done), ""] if done
+          else []),
         # Last, and in this order: the orders are what she is here to do, the doc is the
         # thing to correct, and the list is the thing to act on. Everything above is the
         # world talking. The orders are the operator's and the other two are hers, which
@@ -441,7 +488,7 @@ def one_line(w):
     """The pane's collapsed version. Fifty rows of grid a turn would drown the
     conversation, and the human has the actual arena on the left."""
     n, todo = len(things(w)), len(objectives(w))
-    return (f"view: ({w.pos[0]},{w.pos[1]}), {w.steps_left} steps, "
+    return (f"view: ({w.pos[0]},{w.pos[1]}), {w.time_left:.0f}s, battery {w.battery}, "
             f"{n} landmark{'' if n == 1 else 's'} known, "
             f"{todo} objective{'' if todo == 1 else 's'} found, "
             f"{w.notes.open} on her list")

@@ -14,6 +14,7 @@ A leftover `pending-` directory is a run nobody answered for, not an error.
     game.jsonl   what happened to the world, fed by `World.recorder` so `world.py` does
                  no I/O of its own.
     night.json   what the last night kept, so `--resume` can wake on the next sol.
+    report.md    the mission so far, written from the world's record. `report.py`.
     start.json   on a resumed run only: the night it woke from, for replay.
 
 No pygame in here, so the tests can drive the whole thing.
@@ -72,6 +73,12 @@ class Run:
         tmp = self.dir / "night.json.tmp"
         tmp.write_text(json.dumps(world.carry()), encoding="utf-8")
         os.replace(tmp, self.dir / "night.json")
+
+    def save_report(self, text):
+        """The report, replaced whole, the same way and for the same reason as the night."""
+        tmp = self.dir / "report.md.tmp"
+        tmp.write_text(text, encoding="utf-8")
+        os.replace(tmp, self.dir / "report.md")
 
     def save_start(self, carried, source):
         """A resumed run keeps the night it woke from, so its replay can wake there too."""

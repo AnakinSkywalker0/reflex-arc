@@ -66,6 +66,8 @@ def same(a, b):
         "notes": (a.notes.memory, a.notes.orders, a.notes.todos)
                  == (b.notes.memory, b.notes.orders, b.notes.todos),
         "history": a.history == b.history,
+        "battery": (a.stranded, a.battery) == (b.stranded, b.battery),
+        "finished": a.finished == b.finished,
     }
 
 
@@ -82,6 +84,10 @@ def test_a_resumed_world_is_the_one_that_slept():
     ok &= check("the finished objective stays finished", (8, 20) not in woke.here.objectives)
     ok &= check("the placed one is still there", (21, 22) in woke.here.objectives)
     ok &= check("the list did not survive", woke.notes.todos == [])
+    ok &= check("it ended the sol out on the plain, so it wakes there, stranded",
+                woke.stranded and woke.pos != C.SPAWN)
+    ok &= check("on the charge it had left, not a full one",
+                woke.battery == kept["battery"] < S.BATTERY, str(woke.battery))
 
     # Twice over: a resumed sol carries again like any other.
     skills.call(woke, "goto", {"x": 2, "y": 2})
@@ -91,6 +97,15 @@ def test_a_resumed_world_is_the_one_that_slept():
     diff = [k for k, v in same(slept, again).items() if not v]
     ok &= check("and a second night the same way", not diff and again.day == 3, str(diff))
     return ok
+
+
+def test_a_night_from_before_stranding_wakes_at_the_pad():
+    print("older nights")
+    kept = roundtrip(played())
+    del kept["pos"], kept["stranded"]
+    woke = World(carried=kept)
+    return check("no position saved means it woke at the pad, as it always did",
+                 woke.pos == C.SPAWN and not woke.stranded)
 
 
 def test_the_wrong_arena_is_refused():
@@ -114,16 +129,16 @@ def test_a_replay_of_a_resumed_run_starts_where_it_did():
         (run / "start.json").write_text(json.dumps(roundtrip(played())))
         (run / "chat.jsonl").write_text("")
         (run / "game.jsonl").write_text(
-            json.dumps({"kind": "settings", "sol": 2, "values": {"DAY_STEPS": 140}}))
+            json.dumps({"kind": "settings", "sol": 2, "values": {"BATTERY": 140}}))
         script = replay.Script(run)
-        keep = S.DAY_STEPS
+        keep = S.BATTERY
         try:
             ok = check("it knows the state it began from", script.start["day"] == 1)
             ok &= check("and its first sol", script.first_sol == 2)
             script.use_settings(script.first_sol)
-            ok &= check("whose settings it takes", S.DAY_STEPS == 140)
+            ok &= check("whose settings it takes", S.BATTERY == 140)
         finally:
-            S.DAY_STEPS = keep
+            S.BATTERY = keep
     return ok
 
 

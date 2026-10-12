@@ -22,6 +22,7 @@ import time
 import urllib.error
 import urllib.request
 
+import autopilot
 import settings as S
 import sight
 import skills
@@ -29,7 +30,8 @@ import prompts
 from sight import status_line   # one wording for the morning and the view
 
 
-WHO = ("status", "you", "gemma", "think", "error", "note", "view", "call", "result")
+WHO = ("status", "you", "auto", "gemma", "think", "error", "note", "view", "call",
+       "result")
 
 
 # Control tokens the template leaks into `content`. Every one of eight gemma turns ended
@@ -122,6 +124,97 @@ def installed_models(timeout=2):
         return None
 
 
+def host_for(model, day):
+    """Where a request to `model` goes on sol `day`. `OUTAGE_SOLS` sends the planner's
+    own model to a port nothing listens on, so a simulated outage fails the way a real
+    one does -- in urllib, not in a branch written for the occasion."""
+    if model == S.MODEL and day in S.OUTAGE_SOLS:
+        return S.OUTAGE_HOST
+    return S.OLLAMA_HOST
+
+
+def _probe(model, host):
+    """One token from `model`. True if it answered at all."""
+    body = json.dumps({"model": model, "stream": False, "keep_alive": S.MODEL_KEEP_ALIVE,
+                       "messages": [{"role": "user", "content": "ok"}],
+                       "options": {"num_predict": 1}}).encode()
+    req = urllib.request.Request(host, body, {"Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=S.PROBE_TIMEOUT) as r:
+            return "error" not in json.load(r)
+    except (urllib.error.URLError, TimeoutError, OSError, ValueError):
+        return False
+
+
+class Link:
+    """Which model is answering -- for the whole run, not one sol.
+
+    A conversation is thrown away every nightfall and an outage is not, so this outlives
+    them: `main.py` makes one and hands it to every sol's conversation. When a request
+    to MODEL fails, `failed` switches to MODEL_FALLBACK and the conversation re-sends the
+    same request at once. While the fallback answers, MODEL is probed every
+    PROBE_SECONDS on a thread -- one token, nothing in any context -- and the first
+    request after a probe answers goes to MODEL again.
+
+    Every cost row on the tape names the model that answered, so a run that spent a sol
+    on the local model says so, and its clock shows what that cost: the fallback thinks
+    slower, and her thinking is what the sol is made of.
+    """
+
+    def __init__(self, probe=None):
+        self.down = False           # MODEL failed, and has not answered a probe since
+        self.hold = False           # a sol's first request waits for the morning probe
+        self._probe = probe or _probe
+        self._next = 0.0
+        self._results = queue.Queue()
+        self._probing = False
+
+    @property
+    def model(self):
+        return S.MODEL_FALLBACK if self.down else S.MODEL
+
+    def failed(self, model):
+        """A request to `model` got no answer. True if there is somewhere else to send
+        it, in which case the link has already switched."""
+        if (self.down or model != S.MODEL or not S.MODEL_FALLBACK
+                or S.MODEL_FALLBACK == S.MODEL):
+            return False
+        self.down = True
+        self._next = time.monotonic() + S.PROBE_SECONDS
+        return True
+
+    def morning(self):
+        """A new sol starts by trying MODEL rather than waiting out the probe interval:
+        the first unattended outage run spent six of the next sol's requests on the
+        fallback that way, with the cloud already back. The sol's first request is held
+        until this probe answers (`hold`) -- wall time only, since the mission clock is
+        charged for thinking and nobody is thinking yet."""
+        if self.down:
+            self.hold = True
+            if not self._probing:
+                self._next = 0.0
+
+    def poll(self, day):
+        """Once a frame. True at the moment MODEL is back."""
+        try:
+            answered = self._results.get_nowait()
+        except queue.Empty:
+            answered = None
+        if answered is not None:
+            self._probing = False
+            self.hold = False
+            if answered and self.down:
+                self.down = False
+                return True
+            self._next = time.monotonic() + S.PROBE_SECONDS
+        if self.down and not self._probing and time.monotonic() >= self._next:
+            self._probing = True
+            model, host = S.MODEL, host_for(S.MODEL, day)
+            threading.Thread(target=lambda: self._results.put(self._probe(model, host)),
+                             daemon=True).start()
+        return False
+
+
 class Conversation:
     """One day's talk. Thrown away at nightfall, which is the whole architecture.
 
@@ -130,8 +223,9 @@ class Conversation:
     once a frame and is the only place the display state changes.
     """
 
-    def __init__(self, world, tape=None):
+    def __init__(self, world, tape=None, link=None):
         self.world = world        # the view is rebuilt from this on every request
+        self.link = link or Link()   # which model answers; outlives the sol
         self.day = world.day
         self.messages = [{"role": "system", "content": prompts.SYSTEM}]
         self.lines = []           # (who, text) -- everything the pane shows
@@ -158,6 +252,8 @@ class Conversation:
         self.faked = 0            # view blocks it wrote for itself, cut before context
         self.calls = []           # every skills.Call this day, for reading back
         self.bad_args = 0         # what the `why` requirement and the parser cost
+        self.failures = 0         # requests that never got an answer. `autopilot` re-asks
+        self.turn_by = None       # who opened the latest turn: "you", "auto", ... or nobody
         self.junk = 0             # template tokens stripped out of what it said
         self._t0 = 0.0
         self._tools_sent = None   # ...and which schemas the request carried. A capped
@@ -170,6 +266,8 @@ class Conversation:
     def open_day(self, w):
         """The morning. The numbers only -- the map arrives with the first request,
         the same way it will with every request after it."""
+        self.link.morning()
+        self.link.poll(w.day)
         self.write("status", status_line(w))
         self.messages.append({"role": "user", "content": status_line(w)})
 
@@ -181,11 +279,50 @@ class Conversation:
         """
         if self.busy or not text.strip():
             return False
+        self._on_shift()
+        self.turn_by = who
         self.write(who, text.strip())
         self.messages.append({"role": "user", "content": text.strip()})
         self.hops = self.moves = self.frees = 0
         self.move_denied = self.free_denied = 0
         self.ended = self.nudged = False
+        self._want()
+        return True
+
+    @property
+    def capped(self):
+        """A cap has stopped this turn: every drive used, or every look since the last
+        drive. An `end` then is the cap's doing, not a judgement about the sol."""
+        return self.moves >= S.MOVE_HOPS or self.frees >= S.FREE_HOPS
+
+    @property
+    def holds_sol(self):
+        """Whether something other than the clock decides where today ends. Live, no."""
+        return False
+
+    def _on_shift(self):
+        """Whoever is on shift changed since the sol opened, or since the last turn.
+
+        The prompt says what `end` does, and that differs between the operator and the
+        clock, so the system message is swapped for the one now in force and she is told
+        in a line of its own. At a turn boundary only: mid-turn, a message slipped in
+        between a call and its result would break the history.
+        """
+        if self.messages[0]["content"] == prompts.SYSTEM:
+            return
+        self.messages[0] = {"role": "system", "content": prompts.SYSTEM}
+        note = autopilot.handover(S.AUTOPILOT)
+        self.write("note", note)
+        self.messages.append({"role": "user", "content": note})
+
+    def retry(self):
+        """Ask again for a request that got no answer, over the context as it stands.
+
+        Not a human turn: the turn that failed is still the one open, so its counters
+        stand and nothing new goes into history.
+        """
+        if self.busy or self.pending is not None:
+            return False
         self._want()
         return True
 
@@ -215,7 +352,7 @@ class Conversation:
         return tuple(n for n in skills.NAMES if n in names)
 
     def _maybe_go(self):
-        if self.pending is not None and self.ready():
+        if self.pending is not None and self.ready() and not self.link.hold:
             self.pending = None
             self._go()
 
@@ -245,6 +382,10 @@ class Conversation:
         payload = self.messages + [{"role": "user", "content": block}]
         allowed = self._allowed()
         self.busy, self._t0, self._tools_sent = True, time.monotonic(), allowed
+        # Chosen here, on the main thread, and read by the stream: the link can change
+        # under a request in flight, and the error has to be pinned on the model asked.
+        self._sent_model = self.link.model
+        self._sent_host = host_for(self._sent_model, self.world.day)
         threading.Thread(target=self._stream, args=(payload, allowed),
                          daemon=True).start()
 
@@ -287,22 +428,28 @@ class Conversation:
         # not, and costs one line to fix.
         if S.MODEL_SEED is not None:
             options["seed"] = S.MODEL_SEED
+        model = getattr(self, "_sent_model", S.MODEL)
         payload = {
-            "model": S.MODEL, "messages": messages, "stream": True,
+            "model": model, "messages": messages, "stream": True,
             "think": S.MODEL_THINK, "keep_alive": S.MODEL_KEEP_ALIVE,
             "options": options,
         }
         payload["tools"] = skills.tools_for(allowed)
         body = json.dumps(payload).encode()
-        req = urllib.request.Request(S.OLLAMA_HOST, body,
+        req = urllib.request.Request(getattr(self, "_sent_host", S.OLLAMA_HOST), body,
                                      {"Content-Type": "application/json"})
-        wanted = []
+        wanted, finished = [], False
         try:
             with urllib.request.urlopen(req, timeout=S.MODEL_TIMEOUT) as r:
                 for raw in r:
                     if not raw.strip():
                         continue
                     d = json.loads(raw)
+                    # Ollama reports a model it cannot reach -- a cloud model with the
+                    # cloud down -- as a line in the stream, not a status. Ignored, the
+                    # stream ends with no `done` and the turn waits for ever.
+                    if d.get("error"):
+                        raise ValueError(f"Ollama: {d['error']}")
                     m = d.get("message") or {}
                     if m.get("thinking"):
                         self.q.put(("think", m["thinking"]))
@@ -315,12 +462,18 @@ class Conversation:
                         # so pump() sees a whole turn at once and never acts on half
                         # of one.
                         self.q.put(("done", (d, wanted)))
+                        finished = True
+            if not finished:
+                raise ValueError("the stream ended without finishing")
         except (urllib.error.URLError, TimeoutError, OSError, ValueError) as e:
             self.q.put(("error", f"{type(e).__name__}: {e}"))
 
     def pump(self):
         """Drain one frame's worth. Returns True if anything on screen changed."""
         changed = False
+        if self.link.poll(self.world.day):
+            self.write("note", f"{S.MODEL} answered a probe -- it takes the next request "
+                               f"again")
         while True:
             try:
                 kind, payload = self.q.get_nowait()
@@ -335,7 +488,19 @@ class Conversation:
                 self.say_buf += payload
             elif kind == "error":
                 self._settle()
-                self.write("error", payload)
+                asked = getattr(self, "_sent_model", S.MODEL)
+                if self.link.failed(asked):
+                    # Not a failure to count: the same request goes out again now, to a
+                    # model that can answer it, and `autopilot` never has to wait.
+                    staged = (" (a simulated outage, --outage)"
+                              if self.world.day in S.OUTAGE_SOLS else "")
+                    self.write("error", f"{asked} did not answer{staged}: {payload} -- "
+                                        f"{S.MODEL_FALLBACK} answers until it is back",
+                               fallback=S.MODEL_FALLBACK)
+                    self._want()
+                else:
+                    self.failures += 1
+                    self.write("error", payload)
             elif kind == "done":
                 self._done(payload)
 
@@ -355,7 +520,11 @@ class Conversation:
         secs, tin, tout = self.last
         self.write("cost", f"{secs}s   {tin} tok in, {tout} out", pane=False,
                    seconds=secs, tokens_in=tin, tokens_out=tout,
-                   hops=self.hops, tools=list(self._tools_sent or skills.NAMES))
+                   hops=self.hops, tools=list(self._tools_sent or skills.NAMES),
+                   model=getattr(self, "_sent_model", S.MODEL))
+        # Before any call in this answer runs: the thinking happened first, so a sol
+        # that ran out while she thought refuses the drive she thought of.
+        self._think(secs)
         said, junk, faked = self._reply()
         if faked:
             self.faked += 1
@@ -380,6 +549,12 @@ class Conversation:
             self._run(wanted)
         elif not self.nudged and skills.looks_like_a_call(said):
             self._nudge()
+
+    def _think(self, secs):
+        """Her thinking, onto the mission clock, at the seconds the request took. Slow
+        answers are a shorter sol, which is the point. A request that failed is not
+        charged: no thinking reached the rover."""
+        self.world.charge(secs)
 
     def _nudge(self):
         """It wrote the call out instead of making it. Say so, and give it one more go.
@@ -453,14 +628,14 @@ class Conversation:
         if move:
             self.move_denied += 1
             note = (f"REFUSED -- you have used all {S.MOVE_HOPS} drives this turn, so "
-                    f"this one did not run and nothing moved. Call end to hand back.")
+                    f"this one did not run and nothing moved. {self._way_out().capitalize()}.")
             spent = self.move_denied >= S.MOVE_GRACE
         else:
             self.free_denied += 1
             # Only offer the drive back when there is one. With both allowances gone,
             # "driving gives it back" names a way out that does not exist.
-            back = ("Driving anywhere gives the allowance back, or call end to hand back."
-                    if self.moves < S.MOVE_HOPS else "Call end to hand back.")
+            back = (f"Driving anywhere gives the allowance back, or {self._way_out()}."
+                    if self.moves < S.MOVE_HOPS else f"{self._way_out().capitalize()}.")
             note = (f"REFUSED -- you have looked {S.FREE_HOPS} times without driving, "
                     f"so this one did not run. {back}")
             spent = self.free_denied >= S.FREE_GRACE
@@ -522,14 +697,30 @@ class Conversation:
         """
         drives, looks = S.MOVE_HOPS - self.moves, S.FREE_HOPS - self.frees
         if not drives and not looks:
-            return " [nothing left this turn -- call end to hand back]"
+            return f" [nothing left this turn -- {self._way_out()}]"
         if not drives:
-            return (f" [no drives left this turn, and no more are coming until the crew "
-                    f"speaks again; {looks} looks, then call end to hand back]")
+            until = "the next turn" if S.AUTOPILOT else "the crew speaks again"
+            return (f" [no drives left this turn, and no more are coming until {until}; "
+                    f"{looks} looks, then {self._way_out()}]")
         if not looks:
             return f" [{drives} drives left this turn; no looks until you drive again]"
         return (f" [{drives} drives left this turn; "
                 f"{looks} looks before you have to drive again]")
+
+    def _way_out(self):
+        """What `end` does for a turn a cap has stopped. Read at the moment it is said,
+        because C can change who is on shift mid-sol.
+
+        With an operator it hands back to them. With nobody on shift "hand back" reads
+        as closing the sol -- the prompt says her `end` does exactly that -- and the
+        refusal is the very moment she is being pushed towards it. So she is told what
+        actually happens: `autopilot` takes an `end` from a capped turn as the cap's and
+        opens another, and the sol goes on.
+        """
+        if S.AUTOPILOT:
+            return ("call end and the clock opens a new turn with both allowances back; "
+                    "the sol goes on")
+        return "call end to hand back"
 
     def _answer(self, fn, move, counts=True):
         """One call, run and recorded. Does not ask for the next request -- the caller
@@ -547,6 +738,10 @@ class Conversation:
             self.frees = 0      # driving buys the looking allowance back
         else:
             self.frees += 1
+        # The clock as the call found it, for the tape. Replay sets it back from here,
+        # because a replay has no thinking to charge and the drive must stop where the
+        # live one did.
+        clock = self.world.time_left
         c = skills.call(self.world, fn.get("name"), _args(fn.get("arguments")),
                         history=self.calls)
         self.calls.append(c)
@@ -556,7 +751,7 @@ class Conversation:
         # re-issues these calls with no model in the loop, and a call parsed back out
         # of its own display string is exactly the worse record `write` warns about.
         self.write("call", f"{c}   why: {c.why or '--'}",
-                   name=c.name, args=c.args, ran=True)
+                   name=c.name, args=c.args, ran=True, clock=clock)
         self.write("result", c.result)
         self.messages.append({"role": "tool", "tool_name": c.name,
                               "content": c.result + skills.budget_note(self.world,

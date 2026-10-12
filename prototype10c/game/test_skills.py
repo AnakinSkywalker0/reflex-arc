@@ -14,6 +14,8 @@ hypothetical; it was watched on 2026-08-26.
 import re
 import sys
 
+import config as C
+import nav
 import settings as S
 import skills
 from world import World
@@ -173,7 +175,8 @@ def test_distance_spends_nothing():
     c = skills.call(w, "distance", {"x": 5, "y": 5, "why": "is it worth the drive"})
     ok = check("prices it", c.result.startswith("DISTANCE"), c.result)
     ok &= check("costs no steps", c.steps == 0 and w.steps == before)
-    ok &= check("and says what is left", "steps left today" in c.result)
+    ok &= check("and says what is left, in charge and in time",
+                "battery holds" in c.result and "seconds left" in c.result)
     return ok
 
 
@@ -485,9 +488,33 @@ def test_the_schema_matches_what_is_wired_up():
     # argument -- the schemas must still not mention it.
     # `scout` and the flyer join this list now Ingenuity is cut. A schema still offering
     # it is exactly how prototype 10 spent a build telling the model it was blind.
-    for absent in ("interact", "sample", "storm", "Ingenuity", "battery",
+    for absent in ("interact", "sample", "storm", "Ingenuity",
                    "scout", "flyer"):
         ok &= check(f"{absent} is not advertised", absent.lower() not in blob.lower())
+    return ok
+
+
+def test_the_way_home_is_warned_about_in_time():
+    print("head back now")
+    w = World()
+    w.pos = (15, 5)                                # ten rows north of the landing site
+    back = nav.home_steps(w)
+    w.spend(S.BATTERY - back - S.BATTERY // 10 - 1)
+    ok = check("with charge to spare, no warning", "Head back" not in skills.budget_note(w))
+    w.spend(1)
+    note = skills.budget_note(w)
+    ok &= check("once the margin is gone, it says go home", "Head back now" in note, note)
+    ok &= check("and how far the pad is", f"at least {back} steps away" in note, note)
+    w.pos = C.SPAWN
+    ok &= check("beside the pad, only the plain count", "Head back" not in
+                skills.budget_note(w))
+
+    # The clock can be the one that runs short: a full battery and little sol left.
+    w = World()
+    w.pos = (15, 5)
+    w.charge(w.time_left - back * S.STEP_SECONDS - S.DAY_SECONDS / 10)
+    ok &= check("short of time with charge to spare, it still says go home",
+                "Head back now" in skills.budget_note(w), skills.budget_note(w))
     return ok
 
 
@@ -506,6 +533,7 @@ if __name__ == "__main__":
                test_counting_only_ever_counts_what_she_has_seen(),
                test_a_formation_keeps_its_name_as_it_comes_out_of_the_fog(),
                test_every_dialect_of_a_written_call_is_recovered(),
-               test_the_schema_matches_what_is_wired_up()]
+               test_the_schema_matches_what_is_wired_up(),
+               test_the_way_home_is_warned_about_in_time()]
     print(f"\n{sum(results)}/{len(results)} groups passed")
     sys.exit(0 if all(results) else 1)

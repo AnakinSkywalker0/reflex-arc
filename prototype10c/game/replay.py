@@ -85,7 +85,7 @@ class Script:
                 expect = next((n.get("text") for n in chat_rows[i + 1:i + 3]
                                if n.get("who") == "result"), None)
                 self.turns.append({"day": r.get("day"), "name": r.get("name"),
-                                   "args": r.get("args") or {},
+                                   "args": r.get("args") or {}, "clock": r.get("clock"),
                                    "said": " ".join(said).strip(), "expect": expect})
                 said = []
 
@@ -113,11 +113,18 @@ class Script:
     def spent(self):
         return self.i >= len(self.turns)
 
-    def next_turn(self):
-        """The next recorded call, or None once the tape has run out."""
+    def peek(self):
+        return None if self.spent else self.turns[self.i]
+
+    def next_turn(self, day=None):
+        """The next recorded call, or None once the tape has run out -- or, given `day`,
+        once the next call belongs to a later sol. That one is left on the tape for the
+        sol it was made on, which is how an unattended replay finds where a sol ended."""
         if self.spent:
             return None
         t = self.turns[self.i]
+        if day is not None and t["day"] is not None and t["day"] > day:
+            return None
         self.i += 1
         return t
 
@@ -162,6 +169,13 @@ class Replay(chat.Conversation):
         self.script = script
         self.diverged = None
 
+    @property
+    def holds_sol(self):
+        """The tape has more calls for today, so today is not over, whoever says so."""
+        t = self.script.peek()
+        return (not self.diverged and t is not None
+                and (t["day"] is None or t["day"] <= self.day))
+
     def _stream(self, messages, allowed=None):
         """The model's turn, read off the tape instead of asked for.
 
@@ -170,24 +184,31 @@ class Replay(chat.Conversation):
         still the seam, so `pump` cannot tell the difference.
 
         A spent tape emits `end`. The alternative is a turn that never closes, which
-        reads on screen as the planner having hung.
+        reads on screen as the planner having hung. So does a sol whose calls have all
+        been made: the next one on the tape is tomorrow's.
 
         So does a diverged one, and it has to be checked here rather than left to
         `_answer`: `_run` calls `_want` straight after `_answer` returns, so a `_stop`
         raised down there is immediately undone by the next request being asked for.
         This is the only point in the loop where refusing to speak actually stops it.
         """
-        turn = None if self.diverged else self.script.next_turn()
+        turn = None if self.diverged else self.script.next_turn(self.day)
         if turn is None:
             self.q.put(("say", "The replay stopped here." if self.diverged else
-                               "The tape ends here."))
+                               "The tape ends here." if self.script.spent else
+                               f"The tape has nothing more for sol {self.day}."))
             self.q.put(("done", ({"done": True}, [{"name": "end", "arguments": {}}])))
             return
         if turn["said"]:
             self.q.put(("say", turn["said"]))
         self._expect = turn["expect"]
+        self._clock = turn["clock"]
         self.q.put(("done", ({"done": True},
                              [{"name": turn["name"], "arguments": turn["args"]}])))
+
+    def _think(self, secs):
+        """Nothing: the tape's clock is set before each call instead. A replay answers
+        in no time, and charging that would be charging a different sol."""
 
     def _answer(self, fn, move, counts=True):
         """Run the call, then check the world still agrees with the tape.
@@ -198,6 +219,12 @@ class Replay(chat.Conversation):
         a divergence anywhere in the world without a field-by-field list that would go
         stale the moment a result gains a clause.
         """
+        # The mission clock as it stood when the live call ran. Nobody thinks in a
+        # replay, so this is what charges her thinking -- and why `_think` does not.
+        clock = getattr(self, "_clock", None)
+        self._clock = None
+        if clock is not None:
+            self.world.set_clock(clock)
         super()._answer(fn, move, counts)
         got = self.calls[-1].result
         want = getattr(self, "_expect", None)

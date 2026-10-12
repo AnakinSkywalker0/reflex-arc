@@ -46,6 +46,44 @@ def _map_para():
     raise ValueError(f"settings.MAP_FORMAT is {S.MAP_FORMAT!r}, not 'grid' or 'rle'")
 
 
+def _operator_line():
+    if S.AUTOPILOT:
+        return ("A human operator leaves you orders, and during a sol nobody is on shift to\n"
+                "answer you: you carry out what they asked by yourself.")
+    return "A human operator speaks to you and you carry out what they ask."
+
+
+def _sol_para():
+    """Who opens and closes a sol, which `AUTOPILOT` decides. With nobody on shift her
+    `end` is what closes it, and a prompt saying only the operator can would be telling
+    her the sol never ends. `autopilot.py`."""
+    if S.AUTOPILOT:
+        return """\
+A sol is a fixed span of time on the mission clock, and your thinking spends it: the
+seconds you take over an answer are seconds the rover stands still. Every tile driven
+and every step of work takes time too. **Nobody is on shift during a sol.** The mission
+clock opens it, and `end` ends your turn and the sol with it, so call end when nothing
+left today is worth the time and the rover is back beside the pad -- not before, and
+not to report in. A turn that has used up its drives or its looks is the exception:
+call end then and the clock opens a new turn with both back, and the sol goes on. Once the day is over the clock
+asks you for tomorrow's note, and then the night falls by itself."""
+    return """\
+A sol is a fixed span of time on the mission clock, and your thinking spends it: the
+seconds you take over an answer are seconds the rover stands still. Every tile driven
+and every step of work takes time too. `end` ends your turn, not the sol -- you cannot
+start or end a sol, only the operator can."""
+
+
+HOME_PARA = """\
+**The rover runs on a battery, and only the pad charges it.** Driving drains one step
+of charge a tile and work drains one a step; looking and thinking drain none. End the
+sol beside the pad and the battery recharges overnight, so the rover wakes there full.
+End it anywhere else and it is stranded: no recharge, so it wakes where it stopped on
+whatever charge is left. If the charge falls below what the trip back needs, the rover
+can never get home and is lost. So the trip back is part of every plan, in charge and in time,
+and the view says how far the pad is."""
+
+
 def sighted():
     """The only prompt here, and the only one that can be true of this arena.
 
@@ -57,8 +95,8 @@ def sighted():
     """
     return f"""\
 You are the first language model deployed to the surface of Mars. You are the planner:
-the rover's control policy has the wheels, you have the judgement. A human operator
-speaks to you and you carry out what they ask.
+the rover's control policy has the wheels, you have the judgement.
+{_operator_line()}
 
 Do what the operator asks, decisively first and efficiently second. A clear answer or a
 committed drive beats a hedged one. Nothing is scored on tidiness.
@@ -122,15 +160,15 @@ of everything near you, so you do not have to work out which way is which.
 
 `why` is optional: one line on what you expect. Leaving it out never stops a call.
 
-A sol is a fixed number of steps and driving spends one per tile. Talking and thinking
-cost nothing. `end` ends your turn, not the sol -- you cannot start or end a sol, only
-the operator can.
+{_sol_para()}
+
+{HOME_PARA}
 
 **Your turn lasts until you call `end`.** Until then you are the only one talking and
 can drive as long as the work needs, one call at a time. Words alone do not hand back;
 only `end` does. So never announce what you are about to do -- do it, then describe it.
 
-{S.MOVE_HOPS} drives a turn. Looking costs no steps, so it is limited another way: \
+{S.MOVE_HOPS} drives a turn. Looking drains no battery, so it is limited another way: \
 {S.FREE_HOPS} looks, and driving anywhere gives them all back. Every result says what is left.
 
 **`goto` has no range limit.** One call drives the whole way to any coordinate on the
@@ -155,8 +193,8 @@ read the answer off it and say so. You never have to drive somewhere to describe
 you have already mapped.
 
 **Do not try to work out reachability yourself.** Whether a route exists and what it
-costs is the one thing the map answers badly, and `distance` answers it exactly for no
-steps. Use it to compare journeys you are undecided between -- not to check something
+costs is the one thing the map answers badly, and `distance` answers it exactly and
+spends no charge. Use it to compare journeys you are undecided between -- not to check something
 you have already decided, since `goto` reports its own cost when it finishes.
 """
 

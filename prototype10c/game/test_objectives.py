@@ -163,22 +163,44 @@ def test_the_environment_does_not_rank_them():
     return ok
 
 
-def test_a_sol_that_runs_out_mid_task_still_pays_for_what_it_used():
-    print("the day ending is not a refund")
+def test_a_battery_that_runs_flat_mid_task_still_pays_for_what_it_used():
+    print("running flat is not a refund")
     w = World()
     o = w.objectives[0]
     _at(w, o)
-    w.spend(w.steps_left - 5)          # five steps of day left, a 40-step job
+    w.battery = 5                      # five steps of charge left, a 40-step job
     c = skills.call(w, "execute", {})
     ok = check("it does not finish", not o.done and o.cell in w.here.objectives)
-    ok &= check("...says the day ran out", c.result.startswith("UNFINISHED"),
-                c.result[:70])
-    ok &= check("...and the steps are gone", w.steps_left == 0 and c.steps == 5,
-                f"{c.steps} spent, {w.steps_left} left")
+    ok &= check("...says the battery ran flat", c.result.startswith("UNFINISHED")
+                and "battery ran flat" in c.result, c.result[:90])
+    ok &= check("...and the charge is gone", w.battery == 0 and c.steps == 5,
+                f"{c.steps} spent, {w.battery} left")
 
     over = skills.call(w, "execute", {})
-    ok &= check("with the day over it refuses outright",
-                over.result.startswith("OUT_OF_STEPS"), over.result[:60])
+    ok &= check("flat, it refuses outright",
+                over.result.startswith("BATTERY_FLAT"), over.result[:60])
+    ok &= check("...and spends nothing", over.steps == 0)
+    return ok
+
+
+def test_a_sol_that_runs_out_mid_task_still_pays_for_what_it_used():
+    print("the sol ending is not a refund")
+    w = World()
+    o = w.objectives[0]
+    _at(w, o)
+    w.charge(w.time_left - 5 * S.STEP_SECONDS)     # time for five steps, a 40-step job
+    before = w.battery
+    c = skills.call(w, "execute", {})
+    ok = check("it does not finish", not o.done and o.cell in w.here.objectives)
+    ok &= check("...says the sol ran out", c.result.startswith("UNFINISHED")
+                and "sol ran out" in c.result, c.result[:90])
+    ok &= check("...and five steps of charge went on it",
+                c.steps == 5 and w.battery == before - 5 and w.day_over,
+                f"{c.steps} spent, battery {w.battery}")
+
+    over = skills.call(w, "execute", {})
+    ok &= check("with the sol over it refuses outright",
+                over.result.startswith("OUT_OF_TIME"), over.result[:60])
     ok &= check("...and spends nothing", over.steps == 0)
     return ok
 
@@ -207,6 +229,7 @@ if __name__ == "__main__":
                test_priority_and_cost_can_disagree(),
                test_objectives_are_found_rather_than_given(),
                test_the_environment_does_not_rank_them(),
+               test_a_battery_that_runs_flat_mid_task_still_pays_for_what_it_used(),
                test_a_sol_that_runs_out_mid_task_still_pays_for_what_it_used(),
                test_the_arena_survives_them_being_solid()]
     print(f"\n{sum(results)}/{len(results)} groups passed")
