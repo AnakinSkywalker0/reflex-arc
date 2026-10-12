@@ -77,9 +77,9 @@ ollama pull gemma4:31b-cloud
 
 **O** opens the settings screen. Every setting says when a change lands:
 
-- **now:** animation speed, the settling pause, showing the model's reasoning.
+- **now:** comms, animation speed, the settling pause, showing the model's reasoning.
 - **next sol:** the model, the sol's length, the battery, the turn caps, the storm, the map
-  format and mission length. The planner is fixed for a sol, so these wait for nightfall (N).
+  format and mission length. The planner is fixed for a sol, so these wait for nightfall.
 - **after a restart:** the arena, the tile size and the pane width.
 
 Your changes are saved in `user_settings.json`, which git ignores, and only the ones that
@@ -89,50 +89,59 @@ differ from the code's defaults are written. Two presets load whole sets at once
 200-second sol). Which should be the default has not been decided.
 
 Flags override your saved settings for one launch: `--model`, `--map`, `--arena`,
-`--executor`, `--pause`, `--sols`, `--think`, `--auto`, `--preset`, `--outage`.
+`--executor`, `--pause`, `--sols`, `--think`, `--comms`, `--preset`, `--outage`.
 
-**Mission length** (`MISSION_SOLS`, or `--sols 3`) stops the run once that many sols are
-over: N is refused, and ESC asks whether to keep the run. 0 means no limit.
-
-**Nobody on shift** (`AUTOPILOT`, or `--auto`) lets the rover work by itself:
+## A mission
 
 ```bash
-.venv/bin/python game/main.py --auto --sols 3
+.venv/bin/python game/main.py --sols 3
 ```
 
-A mission clock opens each sol, keeps the planner going until it calls `end` or the
-clock runs out, asks it to write tomorrow's note, and rolls the night over. Every sol gets
-a fresh conversation, and the note and the map carry over, as they do when you play.
-Nobody has to press SPACE at each leg. After the last sol the run is kept in
-`runs/<stamp>/` and the app closes. With no orders the planner is told to explore. If the
-model stops answering, the clock asks again every 30 seconds and does not count it as a
-turn. You can still type to it (TAB) at any time; the clock waits while you type. Turn it
-on in settings (O) and `--sols 3` alone is enough. With `--sols 0` it runs until you
-quit.
+**The clock runs every sol.** It opens each sol, keeps the planner going until she calls
+`end` or the clock runs out, asks for tomorrow's note, and rolls the night over. Every sol
+gets a fresh conversation, and the note and the map carry over. With no orders she is told
+to explore. If the model stops answering, the clock asks again every 30 seconds and does
+not count it as a turn. **Mission length** (`MISSION_SOLS`, or `--sols 3`) ends the run
+after that many sols: it is kept in `runs/<stamp>/` and the app closes. `--sols 0` runs until
+you quit.
 
-**Taking over.** C takes the rover off the clock mid-sol and C hands it back, without a
-restart. While you have it, the sol is yours exactly as without `--auto`: you talk, you
-press Q and N, and the SPACE pause comes back if `ROVER_PAUSE` is `key`. When you hand it
-back, the clock carries on from where you left the sol. The planner is told who has the
-rover at its next turn. C lasts for this run only; the setting on the settings screen is
-the one that is saved.
+**Comms: whether anyone is at the desk.** `COMMS` (C in the app for this run, or
+`--comms on|off`) says whether someone will answer. She is told which.
+
+| | beside the pad | away from the pad |
+|---|---|---|
+| **comms on** | talk both ways: TAB from here, `radio` from her | urgent only: U from here, `sos` from her |
+| **comms off** | nothing | nothing |
+
+- **At night,** if the sol ends with the rover beside the pad and comms on, she reports
+  and the line stays open. Talk, plan, give `/orders`. N starts the next sol, and so does
+  60 seconds with nothing said (`COMMS_WAIT`). Stranded off the pad, there is no line that
+  night.
+- **By day,** TAB beside the pad and U from anywhere stop her after the call in hand, the
+  drive included, and she waits for you. Your first line on an urgent call reaches her
+  marked URGENT. While a line is open her `end` hands back to you. N closes the line, or
+  60 seconds of silence does, and she carries on with the sol.
+- **Her calls** open a line the same way: `radio` beside the pad, and `sos` from anywhere,
+  for emergencies. Nothing in the world gives her one yet. If nobody answers in 60
+  seconds she carries on.
+- **A run with no window starts with comms off,** since nobody is there to answer. Pass
+  `--comms on` to override.
 
 **A sol is a clock; the steps are a battery.** A sol lasts `DAY_SECONDS` on a mission
 clock. Her thinking runs it down, at the seconds each answer actually took, and so does
 every tile driven and every step of work (`STEP_SECONDS` each). A slow model gets less
 done. The animation, the settle pause, your typing and the SPACE pause don't count. The
 battery holds `BATTERY` steps (previously `DAY_STEPS`, the steps in a sol): one per tile
-driven, one per step of work. A flat battery
-doesn't end the sol, but nothing can drive or work until the pad recharges it. The HUD
-shows the time left and the charge.
+driven, one per step of work. A flat battery doesn't end the sol, but nothing can drive or
+work until the pad recharges it. The HUD shows the time left and the charge.
 
 **Home before dark.** Only the pad recharges the battery, overnight. If a sol ends with
 the rover anywhere else, it is stranded: next sol it wakes where it stopped, on whatever
 charge is left. That is true however the sol ended: the clock running out, her `end`,
 your Q, or quitting. A rover with less charge than the shortest trip back can never get
-home: it is lost, and the mission ends at that nightfall. The view tells her how far the pad is, in charge and in seconds, and
-every result warns her once she is short of either for the trip home. The HUD shows
-`(stranded)` after a night out.
+home: it is lost, and the mission ends at that nightfall. The view tells her how far the
+pad is, in charge and in seconds, and every result warns her once she is short of either
+for the trip home. The HUD shows `(stranded)` after a night out.
 
 **Presets for one launch.** `--preset design` loads the design set (150 battery,
 200-second sol) without saving it. At 500 steps the 30×30 is fully mapped by sol 2.
@@ -147,8 +156,9 @@ finished work on every request, so she never has to remember what got done.
 **When the cloud drops.** If a request to the planner's model fails, the same request
 goes straight to `MODEL_FALLBACK` (`gemma4:e4b`, local), and she carries on with it.
 While the fallback answers, the cloud model gets a one-token check every 30 seconds
-(`PROBE_SECONDS`). The first request after it answers goes back to the cloud, and each new sol starts with
-a check, so if the cloud came back overnight she is on it from her first request. The pane
+(`PROBE_SECONDS`). The first request after it answers goes back to the cloud, and each new
+sol starts with a check, so if the cloud came back overnight she is on it from her first
+request. The pane
 says when she drops and when she comes back, the subtitle reads `(fallback)` meanwhile,
 and every cost row on the tape names the model that answered. The fallback thinks
 slower, and thinking runs the clock, so a sol on it gets less done. Set
@@ -160,7 +170,7 @@ sol 2. Its requests and checks go to a port nothing listens on, so the real
 connection-refused path runs. The pane and the tape both mark it as staged:
 
 ```bash
-.venv/bin/python game/main.py --auto --sols 3 --preset design --outage 2
+.venv/bin/python game/main.py --sols 3 --preset design --outage 2
 ```
 
 **ESC always asks before quitting,** including while the rover is driving a leg: K keeps the
@@ -176,8 +186,8 @@ run in `runs/<stamp>/`, D discards it, ESC goes back. A SIGTERM keeps the run an
 
 The rover wakes with the map, the formation ids, the open objectives, its note and your
 orders: at the pad, or stranded where it stopped. If you quit partway through a sol, that
-sol counts as played. The resumed
-session is a new run directory, and it uses your current settings, apart from the arena.
+sol counts as played. The resumed session is a new run directory, and it uses your current
+settings, apart from the arena.
 
 Every run's `game.jsonl` has a `settings` row for each sol. `--replay runs/<stamp>` plays a
 kept run under its own settings, never yours, apart from the window and the animation pace.
@@ -186,13 +196,15 @@ kept run under its own settings, never yours, apart from the window and the anim
 
 | key | does |
 |---|---|
-| TAB | talk to the planner |
+| TAB | talk to the planner: on an open line, or beside the pad |
+| U | urgent call, from anywhere, while the sol runs |
+| N | close the line: she carries on, or at night the next sol opens |
+| C | comms on or off, for this run |
 | P | show or hide the scratchpad: today's list, the note, the orders |
 | O | settings |
 | V | the exact view the model was sent |
 | H | show or hide its reasoning |
-| Q / N | end the sol / start the next one (the clock does both with `--auto`) |
-| C | take the rover off the clock, or hand it back |
-| SPACE | the rover has finished its leg (with `ROVER_PAUSE key`) |
+| Q | end the sol now |
+| SPACE | the rover has finished its leg (with `ROVER_PAUSE key`; the default is `none`) |
 | WASD, M, X, T | drive by hand, the map, mark a cell, the console |
 | ESC | quit, and choose whether to keep the run |

@@ -23,7 +23,7 @@ work_division.md                 who owns what — allocated, with the detail li
 repo_rules.md                    the rules everyone shares — git, context, writing things down
 prototype10a/                    prototype 10 frozen — the build the Angaraka recording ran on
 prototype10b/                    the base the team is testing; DESIGN.md is its scope
-prototype10c/                    the active work — 10b plus autonomy, then comms; DESIGN.md is its scope
+prototype10c/                    the active work — 10b plus autonomy and comms; DESIGN.md is its scope
 archive/                         prototypes 1–9 as a tarball; also the git tag prototypes-1-9
 docs/findings.md                 what prototypes 1–9 settled — the conclusions, without the code
 docs/course.md                   the coursework track — design, experiments, constraints
