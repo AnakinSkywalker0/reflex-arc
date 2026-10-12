@@ -301,10 +301,10 @@ def _hud(surf, w, f, reel=None):
               (MARGIN, y0 + 62))
     hint = ("SPACE skip the drive   " if reel and reel.busy else
             "WASD drive   M map   X mark   T console   ")
-    surf.blit(f.tiny.render(hint + "TAB talk   H thinking   Q end sol   ESC quit",
+    surf.blit(f.tiny.render(hint + "TAB talk   U urgent   N close the line   ESC quit",
                             True, C.FAINT), (MARGIN, y0 + 84))
-    surf.blit(f.tiny.render("O settings   P scratchpad   C "
-                            + ("take over" if S.AUTOPILOT else "hand to the clock"),
+    surf.blit(f.tiny.render("O settings   P scratchpad   H thinking   Q end sol   C comms "
+                            + ("off" if S.COMMS else "on"),
                             True, C.FAINT), (MARGIN, y0 + 100))
 
     # The rover is out on the floor driving a leg and everything here is held until it
@@ -465,6 +465,7 @@ CHAT_INDENT = 14
 # reads better than one carrying a tag on line one.
 HEADS = {"status": ("SOL OPEN", C.CHAT_GOOD),
          "you": ("OPERATOR", C.CHAT_OPERATOR),
+         "urgent": ("OPERATOR · URGENT", C.CHAT_BAD),
          # Not the operator's colour: nobody coached a sol the clock opened.
          "auto": ("MISSION CLOCK", C.CHAT_GOOD),
          "gemma": ("PLANNER", C.CHAT_PLANNER),
@@ -539,7 +540,7 @@ def _pad_lines(w, cols, open_):
 
 
 def draw_chat(surf, conv, w, f, line, focused, scroll, show_thinking=True, reel=None,
-              overlay=None, pad=None):
+              overlay=None, pad=None, pilot=None):
     """The right-hand pane. Returns how far back it is still possible to scroll.
 
     `overlay` replaces the transcript with a block to read -- V, and the view. It is
@@ -556,7 +557,7 @@ def draw_chat(surf, conv, w, f, line, focused, scroll, show_thinking=True, reel=
     surf.blit(f.big.render("MISSION PLANNER", True, C.CHAT_TEXT), (x, 14))
     link = conv.link
     sub = (f"{link.model}{'  (fallback)' if link.down else ''}   ·   sol {conv.day}   ·   "
-           + ("nobody on shift" if S.AUTOPILOT else "operator on shift"))
+           + ("comms on" if S.COMMS else "comms off"))
     if not show_thinking:
         sub += "   ·   reasoning hidden"
     surf.blit(f.tiny.render(sub, True, C.CHAT_MUTED), (x, 40))
@@ -570,18 +571,25 @@ def draw_chat(surf, conv, w, f, line, focused, scroll, show_thinking=True, reel=
         state, tone = "waiting for the rover...", C.CHAT_SKILL
     elif conv.busy:
         state, tone = ("thinking..." if not conv.say_buf else "answering..."), C.CHAT_GOOD
+    elif pilot and pilot.line:
+        left = pilot.wait_left()
+        last = bool(S.MISSION_SOLS) and w.day >= S.MISSION_SOLS
+        state = (("MISSION OVER" if last else f"SOL {w.day} OVER") + "  ·  line open  ·  "
+                 + ("N to finish" if last else f"N for sol {w.day + 1}")
+                 if w.day_over else f"LINE OPEN  ·  {pilot.line}  ·  N closes it")
+        state += "  ·  TAB talk" + (f"  ·  closes in {left:.0f}s" if left is not None
+                                    else "")
+        tone = C.CHAT_BAD if pilot.line in ("urgent", "sos") else C.CHAT_GOOD
     elif w.day_over and w.lost:
         state, tone = (f"ROVER LOST on sol {w.day}  ·  cannot reach the pad  ·  "
-                       + ("keeping the run" if S.AUTOPILOT else "ESC to finish"),
-                       C.CHAT_BAD)
+                       f"keeping the run", C.CHAT_BAD)
     elif w.day_over and S.MISSION_SOLS and w.day >= S.MISSION_SOLS:
-        state = (f"MISSION OVER after {w.day} sols  ·  "
-                 + ("keeping the run" if S.AUTOPILOT else "ESC to finish"))
-        tone = C.CHAT_BAD
+        state, tone = f"MISSION OVER after {w.day} sols  ·  keeping the run", C.CHAT_BAD
     elif w.day_over:
         state = (f"SOL {w.day} OVER  ·  "
-                 + (f"sol {w.day + 1} opens by itself" if S.AUTOPILOT else
-                    f"talk, then N for sol {w.day + 1}"))
+                 + ("no link tonight: away from the pad  ·  "
+                    if S.COMMS and not w.docked else "")
+                 + f"sol {w.day + 1} opens by itself")
         tone = C.CHAT_BAD
     elif conv.last:
         secs, pin, pout = conv.last

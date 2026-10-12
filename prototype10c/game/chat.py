@@ -30,8 +30,8 @@ import prompts
 from sight import status_line   # one wording for the morning and the view
 
 
-WHO = ("status", "you", "auto", "gemma", "think", "error", "note", "view", "call",
-       "result")
+WHO = ("status", "you", "urgent", "auto", "gemma", "think", "error", "note", "view",
+       "call", "result")
 
 
 # Control tokens the template leaks into `content`. Every one of eight gemma turns ended
@@ -246,6 +246,7 @@ class Conversation:
         self.move_denied = 0      # drives refused past the cap, against MOVE_GRACE
         self.free_denied = 0      # looks refused past the cap, against FREE_GRACE
         self.ended = False        # she called `end`, or it was called for her
+        self.cutting = False      # the desk has called: stop after the call in hand
         self.nudged = False       # ...and whether it has been told it narrated a call
         self.narrated = 0         # how often it wrote a call out and could not be read
         self.recovered = 0        # ...and how often one was read out of the text and run
@@ -288,7 +289,7 @@ class Conversation:
         self.messages.append({"role": "user", "content": text.strip()})
         self.hops = self.moves = self.frees = 0
         self.move_denied = self.free_denied = 0
-        self.ended = self.nudged = False
+        self.ended = self.nudged = self.cutting = False
         self._want()
         return True
 
@@ -304,19 +305,35 @@ class Conversation:
         return False
 
     def _on_shift(self):
-        """Whoever is on shift changed since the sol opened, or since the last turn.
+        """Someone sat down at the desk, or left it, since the last turn.
 
-        The prompt says what `end` does, and that differs between the operator and the
-        clock, so the system message is swapped for the one now in force and she is told
-        in a line of its own. At a turn boundary only: mid-turn, a message slipped in
-        between a call and its result would break the history.
+        The prompt says who can be reached and how, so the system message is swapped for
+        the one now in force and she is told in a line of its own. At a turn boundary
+        only: mid-turn, a message slipped in between a call and its result would break
+        the history.
         """
         if self.messages[0]["content"] == prompts.SYSTEM:
             return
         self.messages[0] = {"role": "system", "content": prompts.SYSTEM}
-        note = autopilot.handover(S.AUTOPILOT)
+        note = autopilot.desk(S.COMMS)
         self.write("note", note)
         self.messages.append({"role": "user", "content": note})
+
+    def cut(self):
+        """The desk has called. The call in hand finishes -- its drive included -- and
+        the turn stops there instead of asking for the next. Nothing to do if she was
+        between turns already."""
+        if self.busy:
+            self.cutting = True
+        elif self.pending is not None:      # held for the rover: the call has run
+            self._stop("mission control called")
+
+    def _next(self):
+        """The turn goes on, unless the desk has called."""
+        if self.cutting:
+            self._stop("mission control called")
+        else:
+            self._want()
 
     def retry(self):
         """Ask again for a request that got no answer, over the context as it stands.
@@ -342,8 +359,14 @@ class Conversation:
         between and the allowance is a different number by the time this goes out.
 
         `end` is always in it. The way out cannot be the thing she is unable to reach.
+        Nor are the calls to mission control budgeted: with someone at the desk, `sos` is
+        offered everywhere and `radio` beside the pad, and with nobody there neither is.
         """
         names = ["end"]
+        if S.COMMS:
+            names.append("sos")
+            if self.world.docked:
+                names.append("radio")
         if self.moves < S.MOVE_HOPS:
             names += ["goto", "execute"]   # both spend steps
         if self.frees < S.FREE_HOPS:
@@ -500,7 +523,7 @@ class Conversation:
                     self.write("error", f"{asked} did not answer{staged}: {payload} -- "
                                         f"{S.MODEL_FALLBACK} answers until it is back",
                                fallback=S.MODEL_FALLBACK)
-                    self._want()
+                    self._next()
                 else:
                     self.failures += 1
                     self.write("error", payload)
@@ -579,7 +602,7 @@ class Conversation:
                               "You wrote that call out as text in your reply instead of "
                               "making it. Nothing ran, nothing moved and no steps were "
                               "spent. Make the call itself now."})
-        self._want()
+        self._next()
 
     def _run(self, wanted):
         """Run one call, refuse any others, and decide whether the turn goes on.
@@ -604,10 +627,18 @@ class Conversation:
                                 "call that did run; decide again then.")
         name = (first.get("name") or "").strip()
         if name == "end":
-            # Never budgeted. Handing back has to stay available even to a turn that
+            # Never budgeted. Ending the turn has to stay available even to a turn that
             # has run out of everything else, or the way out is the thing she cannot do.
             self._answer(first, move=False, counts=False)
             self._stop("she called end")
+            return
+        if name in ("radio", "sos"):
+            # A call that got through ends her turn: the desk answers, or does not.
+            self._answer(first, move=False, counts=False)
+            if skills.got_through(self.calls[-1]):
+                self._stop(f"she called mission control ({name})")
+            else:
+                self._next()
             return
 
         # What spends steps, not what changes position: a piece of work costs the day
@@ -619,7 +650,7 @@ class Conversation:
             return
 
         self._answer(first, move)
-        self._want()
+        self._next()
 
     def _deny(self, fn, move):
         """A call past its allowance: refused, counted, and eventually fatal to the turn.
@@ -646,18 +677,20 @@ class Conversation:
         if spent:
             self._stop("it kept asking after the allowance ran out")
         else:
-            self._want()
+            self._next()
 
     def _stop(self, why):
         """The turn is over. The *turn* -- the sol runs until the steps do.
 
-        Nothing further is asked for, so `pump` falls idle and the crew can speak. She
+        Nothing further is asked for, so `pump` falls idle and the clock, or the desk on
+        an open line, has the next word. She
         is not made to say anything on the way out: a model that has just been told no
         three times has nothing to add, and demanding a summary was only ever a way of
         making the cap look voluntary.
         """
         self.ended = True
         self.pending = None
+        self.cutting = False
         self.write("error", f"turn ended -- {why}")
 
     def _refuse(self, wanted, note):
@@ -702,28 +735,23 @@ class Conversation:
         if not drives and not looks:
             return f" [nothing left this turn -- {self._way_out()}]"
         if not drives:
-            until = "the next turn" if S.AUTOPILOT else "the crew speaks again"
-            return (f" [no drives left this turn, and no more are coming until {until}; "
-                    f"{looks} looks, then {self._way_out()}]")
+            return (f" [no drives left this turn, and no more are coming until the next "
+                    f"turn; {looks} looks, then {self._way_out()}]")
         if not looks:
             return f" [{drives} drives left this turn; no looks until you drive again]"
         return (f" [{drives} drives left this turn; "
                 f"{looks} looks before you have to drive again]")
 
     def _way_out(self):
-        """What `end` does for a turn a cap has stopped. Read at the moment it is said,
-        because C can change who is on shift mid-sol.
+        """What `end` does for a turn a cap has stopped.
 
-        With an operator it hands back to them. With nobody on shift "hand back" reads
-        as closing the sol -- the prompt says her `end` does exactly that -- and the
-        refusal is the very moment she is being pushed towards it. So she is told what
-        actually happens: `autopilot` takes an `end` from a capped turn as the cap's and
-        opens another, and the sol goes on.
+        "Hand back" would read as closing the sol -- the prompt says her `end` does
+        exactly that -- and the refusal is the very moment she is being pushed towards
+        it. So she is told what actually happens: `autopilot` takes an `end` from a
+        capped turn as the cap's and opens another, and the sol goes on.
         """
-        if S.AUTOPILOT:
-            return ("call end and the clock opens a new turn with both allowances back; "
-                    "the sol goes on")
-        return "call end to hand back"
+        return ("call end and the clock opens a new turn with both allowances back; "
+                "the sol goes on")
 
     def _answer(self, fn, move, counts=True):
         """One call, run and recorded. Does not ask for the next request -- the caller

@@ -122,10 +122,13 @@ SETTINGS = [
             "tape keeps it either way", replayed=False),
     Setting("TIME_SCALE", "float", "now", "how fast the elapsed clock runs",
             0.25, 8.0, 0.25, replayed=False),
-    # The viewer's own on a replay: who opens the turns changes nothing on the tape.
-    Setting("AUTOPILOT", "bool", "now", "nobody on shift: each sol opens, runs and rolls "
-            "over by itself, and the run is kept when the mission is over. C in the app "
-            "switches it for this run only", replayed=False),
+    # The viewer's own on a replay: nobody on a tape can be talked to.
+    Setting("COMMS", "bool", "now", "communications established: someone is at the "
+            "desk, so she can be talked to beside the pad and by urgent call away from "
+            "it. C in the app switches it for this run only", replayed=False),
+    Setting("COMMS_WAIT", "float", "now", "seconds an open line waits with nothing "
+            "said before the clock takes the sol back, or the night rolls over",
+            10.0, 600.0, 10.0, replayed=False),
     Setting("ROVER_PAUSE", "choice", "now", "key: press SPACE when the rover has driven "
             "each leg. none: do not wait", choices=("key", "none"), replayed=False),
     # --- the next sol ------------------------------------------------------

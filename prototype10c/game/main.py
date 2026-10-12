@@ -1,12 +1,12 @@
 """Run me:  .venv/bin/python game/main.py [--arena 30|50] [--map grid|rle] [--sols N]
                                         [--model TAG] [--think] [--replay runs/<stamp>]
-                                        [--auto] [--preset design] [--outage N]
+                                        [--comms on|off] [--preset design] [--outage N]
 
 WASD drive (hold to keep going)   M map   X mark   T console
-TAB talk to the planner   V what it sees   H hide/show its reasoning
-O settings   P show/hide the scratchpad   C hand the rover to the clock, or take it back
-N next sol (once one has ended)   Q end the sol   ESC quit
-SPACE the rover has finished the leg -- pressed at every pause
+TAB talk to the planner, on an open line or beside the pad   U urgent call, anywhere
+N close the line   C comms on / off   V what it sees   H hide/show its reasoning
+O settings   P show/hide the scratchpad   Q end the sol   ESC quit
+SPACE the rover has finished the leg -- with ROVER_PAUSE key
 
 Settings come from `registry.py`: the code's defaults, then `user_settings.json`, then
 flags for this launch. README.md says when each kind of change lands.
@@ -18,7 +18,7 @@ lifts fog -- Ingenuity is cut, so a sol of driving is the only way the map fills
 **Three things are written down, and they differ by who holds the pen.** She keeps a
 list for today that `todo` adds to and `strike` crosses off, wiped at nightfall, and one
 note that `remember` rewrites and the night does not take. The third is the operator's,
-typed at TAB and read-only to her:
+typed at TAB on an open line and read-only to her:
 
     /orders finish objective 3 today      her standing job. Stands until replaced;
                                           `/orders` alone clears it
@@ -26,11 +26,11 @@ typed at TAB and read-only to her:
                                           Refused if the rover could never reach it
     /status                               the status line, as she reads it
 
-**Nobody on shift.** `--auto` (AUTOPILOT) hands the operator's half to the mission
-clock: it opens each sol, keeps her going until she calls `end`, asks for tomorrow's
-note and rolls the night over, and keeps the run once the mission is over. With
-`--sols 3` that is a whole expedition from one launch. C takes the rover over mid-sol
-and C again hands it back. `autopilot.py` says how.
+**The clock runs every sol.** It opens each sol, keeps her going until she calls `end`,
+asks for tomorrow's note and rolls the night over, and keeps the run once the mission is
+over, so `--sols 3` is a whole expedition from one launch. With comms on (COMMS, C) the
+desk can talk to her beside the pad, and at night after she reports; away from the pad
+only U from here and `sos` from her get through. `autopilot.py` says how.
 
 **Live and replay.** Live, the model decides. `--replay` re-issues a kept run's calls
 with no model in the loop and halts if the world stops matching the tape -- so a sol
@@ -96,8 +96,9 @@ def read_flags(argv, prefs):
     p.add_argument("--pause", choices=("key", "none"),
                    help="who says the rover finished a leg; 'key' is SPACE at every pause")
     p.add_argument("--sols", type=int, help="sols in the mission; 0 is no limit")
-    p.add_argument("--auto", action="store_true",
-                   help="nobody on shift: every sol opens and rolls over by itself")
+    p.add_argument("--comms", choices=("on", "off"),
+                   help="whether anyone is at the desk to talk to her; a run with no "
+                        "window starts with it off")
     p.add_argument("--preset", choices=tuple(registry.PRESETS),
                    help="load a preset for this launch only; nothing is saved")
     p.add_argument("--outage", type=int, action="append", metavar="SOL",
@@ -117,9 +118,12 @@ def read_flags(argv, prefs):
     if args.preset:
         registry.apply(registry.PRESETS[args.preset])
     S.OUTAGE_SOLS = tuple(args.outage or ())
+    # With no window, nobody is at the desk unless the flag says so.
+    comms = (args.comms == "on" if args.comms else
+             False if os.environ.get("SDL_VIDEODRIVER") == "dummy" else None)
     flags = {"MAP_FORMAT": args.map, "APP_ARENA": args.arena, "MODEL": args.model,
              "EXECUTOR": args.executor, "ROVER_PAUSE": args.pause,
-             "MISSION_SOLS": args.sols, "AUTOPILOT": True if args.auto else None}
+             "MISSION_SOLS": args.sols, "COMMS": comms}
     bad = registry.apply({k: v for k, v in flags.items() if v is not None})
     if bad:
         p.error(f"out of range: {', '.join(bad)}")
@@ -162,7 +166,7 @@ def main():
             + (f"  ·  replay of {pathlib.Path(args.replay).name}" if args.replay else
                f"  ·  {S.MODEL}")
             + ("  ·  thinking" if S.MODEL_THINK else "")
-            + ("  ·  nobody on shift" if S.AUTOPILOT else "  ·  operator on shift"))
+            + ("  ·  comms on" if S.COMMS else "  ·  comms off"))
 
     title()
     # Before anything asks how big anything is: every other size is derived from
@@ -246,11 +250,11 @@ def main():
         return now >= settle[0]
 
     conv.ready = ready
-    # The operator's half of the sol, when nobody is on shift. One per sol.
-    pilot = autopilot.Autopilot()
-    # Who was on shift last frame. C and the settings screen both change AUTOPILOT, and
-    # both land at once, so the change is noticed here rather than at either door.
-    on_shift = [S.AUTOPILOT]
+    # The clock, and the line to the desk. One per sol; a replay's never opens a line.
+    pilot = autopilot.Autopilot(live=not script)
+    # Whether anyone was at the desk last frame. C and the settings screen both change
+    # COMMS, and both land at once, so the change is noticed here rather than at either.
+    at_desk = [S.COMMS]
     mode = "world"
     cursor = w.pos
     held = None
@@ -341,9 +345,7 @@ def main():
         moving, which is the thing actually worth watching, and the HUD says what it
         was sent.
         """
-        # Nobody is on shift to press SPACE. The rover reporting back for itself is what
-        # replaces this pause on hardware; until then an unattended run does not wait.
-        if S.ROVER_PAUSE != "key" or S.AUTOPILOT:
+        if S.ROVER_PAUSE != "key":
             return
         world.awaiting_rover = list(dirs)
         asking = False      # ESC asks the same keep-or-discard question as anywhere else
@@ -367,7 +369,7 @@ def main():
                 if asking:
                     render.draw_quit(game, w, fonts, run, mission_over())
                 render.draw_chat(pane, conv, w, fonts, said, typing, scroll,
-                                 S.SHOW_THINKING, reel, None, pad_open)
+                                 S.SHOW_THINKING, reel, None, pad_open, pilot)
                 pygame.display.flip()
         finally:
             world.awaiting_rover = None
@@ -412,22 +414,21 @@ def main():
         conv = talker()
         conv.ready = ready
         conv.open_day(w)
-        pilot = autopilot.Autopilot()
+        pilot = autopilot.Autopilot(live=not script)
         if notes:
             conv.write("note", "settings from this sol: " + ", ".join(notes))
 
     def shift():
-        """Whoever is on shift changed mid-sol. The prompt is rebuilt for them now and
-        swapped in at her next turn (`Conversation._on_shift`); the clock picks up from
-        wherever the operator left the sol."""
-        on_shift[0] = S.AUTOPILOT
+        """Someone sat down at the desk, or left it, mid-sol. The prompt is rebuilt now
+        and swapped in at her next turn (`Conversation._on_shift`). An open line closes
+        on the clock's next tick if nobody is left on it."""
+        at_desk[0] = S.COMMS
         prompts.use(args.prompt)
-        run.record("shift", sol=w.day, autopilot=S.AUTOPILOT, steps=w.steps,
+        run.record("comms", sol=w.day, on=S.COMMS, steps=w.steps,
                    prompt=hashlib.sha256(prompts.SYSTEM.encode()).hexdigest()[:12])
-        conv.write("note", "the mission clock has the rover -- C to take it back"
-                   if S.AUTOPILOT else "you have the rover -- C hands it back to the clock")
-        if S.AUTOPILOT:
-            pilot.resume(conv)
+        conv.write("note", "comms on -- the desk can reach her beside the pad, and by U "
+                           "from anywhere" if S.COMMS else
+                           "comms off -- nobody is at the desk, and she is told so")
         title()
 
     def settings_key(e):
@@ -505,19 +506,24 @@ def main():
                     typing = False
                 elif e.key == pygame.K_RETURN:
                     text = said.strip()
+                    if text and conv.busy:
+                        # Refused before anything is applied, so sending it again does
+                        # not place the same objective twice.
+                        conv.write("note", "she is still answering -- send it when she has")
+                        continue
                     if text == "/status":
-                        conv.send(sight.status_line(w), who="status")
+                        pilot.say(conv, sight.status_line(w), who="status")
                     elif text.startswith("/place"):
-                        conv.send(place(w, text[len("/place"):]), who="status")
+                        pilot.say(conv, place(w, text[len("/place"):]), who="status")
                     elif text.startswith("/orders"):
                         # Mission control, not conversation. It goes to the store rather
                         # than the message log, because the log is cleared at nightfall
                         # and an order typed at nightfall would be the first thing lost.
                         # `/orders` alone clears them; that has to be possible or a
                         # survey sol can never follow a sol with an objective on it.
-                        conv.send(orders(w, text[len("/orders"):]), who="status")
+                        pilot.say(conv, orders(w, text[len("/orders"):]), who="status")
                     elif text:
-                        conv.send(text)
+                        pilot.say(conv, text)
                     said, scroll = "", 0
                 elif e.key == pygame.K_BACKSPACE:
                     said = said[:-1]
@@ -574,27 +580,31 @@ def main():
                     mode, held = "console", None
                 elif e.key == pygame.K_q:
                     w.day_over = True
-                elif e.key == pygame.K_TAB:
-                    typing, held = True, None
+                # The desk speaks: beside the pad or on an open line (TAB), or by an
+                # urgent call from anywhere (U). Refused out loud when it cannot reach her.
+                elif e.key in (pygame.K_TAB, pygame.K_u):
+                    why = pilot.talk(conv, w, urgent=e.key == pygame.K_u)
+                    if why:
+                        conv.write("note", why)
+                    else:
+                        typing, held = True, None
                 elif e.key == pygame.K_h:
                     S.SHOW_THINKING = not S.SHOW_THINKING
                     scroll = 0
                 elif e.key == pygame.K_p:
                     pad_open = not pad_open
-                # Take the rover over, or hand it back. For this run only: the setting
-                # on the settings screen is the one that is saved.
+                # Sit down at the desk, or leave it. For this run only: the setting on
+                # the settings screen is the one that is saved.
                 elif e.key == pygame.K_c:
-                    S.AUTOPILOT = not S.AUTOPILOT
+                    S.COMMS = not S.COMMS
                 elif e.key == pygame.K_o:
                     mode, held, notice = "settings", None, ""
                     models = chat.installed_models()
                     registry.BY_NAME["MODEL"].choices = models
-                # You start the sol, not the loop. The old conversation is dropped here
-                # rather than carried, so anything gemma wanted to keep had to be said
-                # while the sol it belonged to was still open. Carrying it is item 7.
-                elif e.key == pygame.K_n and w.day_over and not mission_over():
-                    nightfall()
-                    scroll = 0
+                # Close the line once she has finished speaking: by day the clock has the
+                # sol back, and at night the next sol opens.
+                elif e.key == pygame.K_n:
+                    pilot.hang_up()
                 # V overlays the view block; V again puts it away. A thing you open to
                 # look at is a mode, not a message -- appending it instead once put
                 # twenty-two copies of four thousand characters into one tape. Nothing is
@@ -639,21 +649,23 @@ def main():
         # the rover drives, and no world change can slip in because nothing has been
         # asked for yet.
         conv.pump()
-        if S.AUTOPILOT != on_shift[0]:
+        if S.COMMS != at_desk[0]:
             shift()
-        # Held while the operator is typing or deciding whether to quit, so a word put in
-        # mid-sol is not talked over and the run is not kept from under the question. A
-        # replay whose tape has run out stops at the end of its sol rather than playing
-        # empty ones.
-        if S.AUTOPILOT and mode != "quit" and not typing:
-            if pilot.tick(conv, w) == "night" and not (script and script.spent):
+        # Held while the desk is typing or deciding whether to quit: a word put in is not
+        # talked over, a line does not close under it, and the run is not kept from under
+        # the question. A replay whose tape has run out stops at the end of its sol
+        # rather than playing empty ones.
+        if mode != "quit":
+            if (pilot.tick(conv, w, typing=typing) == "night"
+                    and not (script and script.spent)):
                 if mission_over():
                     leave(True)
                 nightfall()
                 scroll = 0
         scroll_max = render.draw_chat(pane, conv, w, fonts, said, typing, scroll,
                                       S.SHOW_THINKING, reel,
-                                      sight.view(w) if mode == "view" else None, pad_open)
+                                      sight.view(w) if mode == "view" else None, pad_open,
+                                      pilot)
         if mode == "settings":
             render.draw_settings(screen, fonts, items, picked, prefs, editing, notice,
                                  models, bool(script))

@@ -250,6 +250,33 @@ TOOLS = [
                     "optional: one line on what changed your mind"},
         }, "required": ["text"]}}},
     {"type": "function", "function": {
+        "name": "radio",
+        "description": (
+            "Call mission control, from beside the pad: a question only they can "
+            "answer, or news that changes the plan. It works only beside the pad; away "
+            "from it only sos gets through. It ends your turn, and their answer is your "
+            "next message -- or, if nobody answers, the sol is yours again. Costs no "
+            "steps."),
+        "parameters": {"type": "object", "properties": {
+            "text": {"type": "string", "description":
+                     f"what you say to them, at most {S.RADIO_CHARS} characters"},
+            "why": {"type": "string", "description":
+                    "optional: one line on why it cannot wait for the night"},
+        }, "required": ["text"]}}},
+    {"type": "function", "function": {
+        "name": "sos",
+        "description": (
+            "An emergency call to mission control, from anywhere: only for something "
+            "that puts the rover or the mission in danger. It ends your turn, and their "
+            "answer is your next message -- or, if nobody answers, the sol is yours "
+            "again. Costs no steps."),
+        "parameters": {"type": "object", "properties": {
+            "text": {"type": "string", "description":
+                     f"what is wrong, at most {S.RADIO_CHARS} characters"},
+            "why": {"type": "string", "description":
+                    "optional: one line on why it is an emergency"},
+        }, "required": ["text"]}}},
+    {"type": "function", "function": {
         "name": "end",
         "description": (
             "End your turn. Until you call this you are the only one talking, so you "
@@ -263,6 +290,14 @@ TOOLS = [
 ]
 
 NAMES = [t["function"]["name"] for t in TOOLS]
+
+# What a call to mission control comes back with when it got through.
+CALLED = ("RADIOED", "SOS SENT")
+
+
+def got_through(c):
+    """Whether `c` was a call to mission control that reached the desk."""
+    return c.name in ("radio", "sos") and (c.result or "").startswith(CALLED)
 
 
 def tools_for(names=None):
@@ -673,9 +708,10 @@ def call(world, name, args, history=()):
             avoid = _avoid(c.args.get("avoid"))
         if name == "strike":
             n = _int("n", c.args.get("n"))
-        if name in ("todo", "remember"):
+        if name in ("todo", "remember", "radio", "sos"):
             text = _text("text", c.args.get("text"),
-                         S.TODO_CHARS if name == "todo" else S.MEMORY_CHARS)
+                         {"todo": S.TODO_CHARS, "remember": S.MEMORY_CHARS}.get(
+                             name, S.RADIO_CHARS))
     except BadArgs as e:
         c.result = f"BAD_ARGS({e}). Nothing happened and nothing was spent."
         return c
@@ -687,6 +723,20 @@ def call(world, name, args, history=()):
         # One wording whoever is on shift. Replay compares results, and who is on shift
         # is the viewer's choice there; what `end` did to the sol is the prompt's to say.
         c.result = "END -- your turn is over."
+        return c
+
+    if name in ("radio", "sos"):
+        # Whether anyone answers is the clock's business (`autopilot`), and whether
+        # anyone is at the desk decides what she is offered, not what this says: the
+        # result is the same whoever replays it.
+        if name == "radio" and not world.docked:
+            c.result = ("NO_LINK -- the rover is away from the pad, and from out here only "
+                        "sos gets through. Nothing was sent; carry on.")
+            return c
+        world.record(name, text=text, at=list(world.pos))
+        c.result = (f"{'RADIOED' if name == 'radio' else 'SOS SENT'} -- mission control "
+                    f"has it. Your turn is over: their answer, if they give one, is your "
+                    f"next message.")
         return c
 
     if name == "count":

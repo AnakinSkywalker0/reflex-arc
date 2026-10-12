@@ -28,12 +28,19 @@ TIME_SCALE = 1.0        # 2.0 makes the day run twice as fast
 # Sols in a mission. Once the last one ends N is refused, so the run stops there and
 # ESC asks whether to keep it. 0 is no limit.
 MISSION_SOLS = 0
-# Nobody on shift. On, the mission clock opens every sol with a turn of its own, keeps
-# the planner going until it calls `end` or the day runs out, asks it for tomorrow's note,
-# and rolls the night over -- so `--auto --sols 3` is three sols from one launch with no
-# key pressed, and the run is kept at the end. Off, the operator opens and closes every
-# sol, as in the recording. `autopilot.py`.
-AUTOPILOT = False
+# The mission clock runs every sol: it opens it, keeps the planner going until she calls
+# `end` or the day runs out, asks for tomorrow's note and rolls the night over, so
+# `--sols 3` is three sols from one launch. `autopilot.py`.
+#
+# Communications established: someone is at the desk and will answer. On, the desk and
+# the planner can talk beside the pad -- by day, and at night once she has reported -- and
+# away from it only by an urgent call: U from the desk, `sos` from her. Off, nobody is
+# there, she is told so, and no line opens. A run with no window starts with it off.
+COMMS = True
+# How long an open line waits with nothing typed and nothing being said before the clock
+# takes the sol back, or the night rolls over. Wall clock: the desk's patience, not the
+# rover's time.
+COMMS_WAIT = 60.0
 # Turns the clock may open in one sol before it calls the sol itself. A turn ends when
 # she calls `end` or a cap ends it for her; this is what stops a planner that only ever
 # hits the cap, or only ever answers in prose, from holding a sol open for good.
@@ -211,6 +218,8 @@ MEMORY_CHARS = 600
 # reason as `remember`. Larger than a memory because an order may place work and say why
 # in one breath, and smaller than a page because it is read on every single call.
 ORDERS_CHARS = 800
+# What she says when she calls mission control, `radio` or `sos`. A call, not a report.
+RADIO_CHARS = 400
 
 # --- the weather -----------------------------------------------------------
 # One dust storm a sol, lasting the sol, visible from the moment it exists. Impassable
@@ -253,12 +262,11 @@ PLAN_FILE = "runs/plan.txt"
 # The bridge reporting back for itself replaces both and is Abhishek's. `nav._await_rover`
 # is the only thing that changes when it lands; the file format does not.
 #
-# **"key" is the default because the pause is the thing being demonstrated.** A sol is
-# six legs a `goto` at worst, so it is a great deal of pressing -- but a run with the
-# pause off writes `plan.txt` and wipes it with nothing on the other end, which is the
-# architecture claimed and not shown. `--pause none` is there for recording a tape with
-# no rover attached, and for a long unattended sol.
-ROVER_PAUSE = "key"
+# **"none" is the default in 10c,** because the clock runs every sol and nobody has to be
+# at the keys. "key" is for a run with a rover on the floor and someone watching it, where
+# the pause is the thing being demonstrated: without it `plan.txt` is written and wiped
+# with nothing on the other end.
+ROVER_PAUSE = "none"
 
 # What a `goto` from the model actually does. `main.py --executor` sets it.
 #   teleport  step cell to cell, writing the route as it goes (the default)

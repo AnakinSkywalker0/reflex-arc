@@ -444,10 +444,13 @@ def test_a_spent_allowance_withdraws_the_schema():
     d.open_day(w)
     d.send("explore, then look around")
     d.pump()
-    ok &= check("a turn with nothing left is offered end alone",
-                d._allowed() == ("end",), str(d._allowed()))
+    # The calls to mission control are not budgeted either (`_allowed`).
+    ok &= check("a turn with nothing left is offered end alone, besides the desk",
+                [n for n in d._allowed() if n not in ("radio", "sos")] == ["end"],
+                str(d._allowed()))
     ok &= check("and the schemas really are filtered, not just the names",
-                [t["function"]["name"] for t in skills.tools_for(d._allowed())] == ["end"])
+                [t["function"]["name"] for t in skills.tools_for(d._allowed())]
+                == list(d._allowed()))
     # `_left` is what it reads on the way there, and it used to promise a drive back.
     ok &= check("the allowance note does not promise a drive it cannot make",
                 "before you have to drive again" not in d._left(), d._left())

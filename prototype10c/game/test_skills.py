@@ -458,9 +458,9 @@ def test_every_dialect_of_a_written_call_is_recovered():
 def test_the_schema_matches_what_is_wired_up():
     print("the schema is honest")
     names = {t["function"]["name"] for t in skills.TOOLS}
-    ok = check("exactly nine skills",
+    ok = check("exactly eleven skills",
                names == {"goto", "distance", "execute", "count", "count_cells",
-                         "todo", "strike", "remember", "end"}, str(names))
+                         "todo", "strike", "remember", "radio", "sos", "end"}, str(names))
     blob = str(skills.TOOLS)
     # Optional since 2026-09-01, and the schema has to say so or the model infers the
     # requirement from the shape and goes back to failing calls it never had to fail.

@@ -47,31 +47,60 @@ def _map_para():
 
 
 def _operator_line():
-    if S.AUTOPILOT:
-        return ("A human operator leaves you orders, and during a sol nobody is on shift to\n"
-                "answer you: you carry out what they asked by yourself.")
-    return "A human operator speaks to you and you carry out what they ask."
+    return ("Mission control leaves you orders, and you carry out what they asked by "
+            "yourself.")
 
 
 def _sol_para():
-    """Who opens and closes a sol, which `AUTOPILOT` decides. With nobody on shift her
-    `end` is what closes it, and a prompt saying only the operator can would be telling
-    her the sol never ends. `autopilot.py`."""
-    if S.AUTOPILOT:
-        return """\
-A sol is a fixed span of time on the mission clock, and your thinking spends it: the
-seconds you take over an answer are seconds the rover stands still. Every tile driven
-and every step of work takes time too. **Nobody is on shift during a sol.** The mission
-clock opens it, and `end` ends your turn and the sol with it, so call end when nothing
-left today is worth the time and the rover is back beside the pad -- not before, and
-not to report in. A turn that has used up its drives or its looks is the exception:
-call end then and the clock opens a new turn with both back, and the sol goes on. Once the day is over the clock
-asks you for tomorrow's note, and then the night falls by itself."""
+    """Her `end` closes the sol, because the clock runs it. `autopilot.py`."""
     return """\
 A sol is a fixed span of time on the mission clock, and your thinking spends it: the
 seconds you take over an answer are seconds the rover stands still. Every tile driven
-and every step of work takes time too. `end` ends your turn, not the sol -- you cannot
-start or end a sol, only the operator can."""
+and every step of work takes time too. The mission clock opens the sol, and
+`end` ends your turn and the sol with it, so call end when nothing left today is worth
+the time and the rover is back beside the pad -- not before, and not to report in. A
+turn that has used up its drives or its looks is the exception: call end then and the
+clock opens a new turn with both back, and the sol goes on. Once the day is over the
+clock asks you for tomorrow's note, and then the night falls by itself."""
+
+
+def _comms_para():
+    """Who can reach whom, which `COMMS` decides: someone at the desk, or nobody."""
+    if S.COMMS:
+        return """\
+**Mission control is at the desk, and the pad is your link to them.** Beside the pad you
+can `radio` them, and they can call you. When a sol ends with the rover beside the pad
+they are on the line for the night: you report, and they may answer. Away from the pad
+only an emergency gets through, either way: `sos` from you, and from them a message
+marked URGENT, which stops your turn after the call in hand. While they are on the line
+your `end` hands the turn back to them instead of closing the sol; when they close the
+line, the sol is yours again."""
+    return """\
+**Nobody is at mission control's desk.** You cannot reach them and they will not call,
+by day or at night. Work from your orders and your own judgement."""
+
+
+# Each skill as the prompt lists it. `radio` and `sos` only with someone at the desk.
+SKILLS = [("goto(x, y, why)", "drive there. One call drives the whole way."),
+          ("distance(x, y, why)", "what that drive would cost. Spends nothing."),
+          ("execute(why)", "do the work at the objective you are standing beside."),
+          ("count(kind, why)", "every rock formation and fog patch, with its size and "
+                               "middle."),
+          ("count_cells(x, y)", "the exact cells one formation covers."),
+          ("todo(text, why)", "put something you mean to do on today's list."),
+          ("strike(n, why)", "cross item n off that list."),
+          ("remember(text, why)", "rewrite the one note that survives tonight."),
+          ("radio(text, why)", "call mission control, from beside the pad."),
+          ("sos(text, why)", "an emergency call to mission control, from anywhere."),
+          ("end(why)", "end your turn.")]
+COUNT = {9: "nine", 11: "eleven"}
+
+
+def _skills():
+    offered = [(sig, what) for sig, what in SKILLS
+               if S.COMMS or not sig.startswith(("radio(", "sos("))]
+    lines = "\n".join(f"  {sig:<21} {what}" for sig, what in offered)
+    return f"You have {COUNT[len(offered)]} skills:\n\n{lines}"
 
 
 HOME_PARA = """\
@@ -110,17 +139,7 @@ the map of everything it has seen, and anything named that it has found. Only th
 copy exists. Keep your own notes short -- a few words on what you found, not a retelling
 of the whole sol.
 
-You have nine skills:
-
-  goto(x, y, why)       drive there. One call drives the whole way.
-  distance(x, y, why)   what that drive would cost. Spends nothing.
-  execute(why)          do the work at the objective you are standing beside.
-  count(kind, why)      every rock formation and fog patch, with its size and middle.
-  count_cells(x, y)     the exact cells one formation covers.
-  todo(text, why)       put something you mean to do on today's list.
-  strike(n, why)        cross item n off that list.
-  remember(text, why)   rewrite the one note that survives tonight.
-  end(why)              end your turn.
+{_skills()}
 
 **You have two places to write, and they have different lifetimes.** Today's list is
 what you mean to do, so a decision gets made once instead of every turn: `todo` puts an
@@ -161,6 +180,8 @@ of everything near you, so you do not have to work out which way is which.
 `why` is optional: one line on what you expect. Leaving it out never stops a call.
 
 {_sol_para()}
+
+{_comms_para()}
 
 {HOME_PARA}
 
