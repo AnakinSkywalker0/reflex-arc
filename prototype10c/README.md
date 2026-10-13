@@ -101,9 +101,10 @@ Flags override your saved settings for one launch: `--model`, `--map`, `--arena`
 `end` or the clock runs out, asks for tomorrow's note, and rolls the night over. Every sol
 gets a fresh conversation, and the note and the map carry over. With no orders she is told
 to explore. If the model stops answering, the clock asks again every 30 seconds and does
-not count it as a turn. **Mission length** (`MISSION_SOLS`, or `--sols 3`) ends the run
-after that many sols: it is kept in `runs/<stamp>/` and the app closes. `--sols 0` runs until
-you quit.
+not count it as a turn. **Mission length** (`MISSION_SOLS`, or `--sols 3`) is how many sols
+run before the app stops and waits. N plays one more sol, a digit 1–9 plays that many, and ESC
+finishes, with K to keep the run. A run with no window is kept in `runs/<stamp>-headless/` and
+exits instead. `--sols 0` runs until you quit.
 
 **The arena.** The 30×30 is the default. `--arena 50` is the bigger plain, with six objectives
 under the fog: two of each priority, one of them inside the C-shaped rock, whose mouth faces
@@ -202,7 +203,8 @@ kept run under its own settings, never yours, apart from the window and the anim
 |---|---|
 | TAB | talk to the planner: on an open line, or beside the pad |
 | U | urgent call, from anywhere, while the sol runs |
-| N | close the line: she carries on, or at night the next sol opens |
+| N | close the line: she carries on, or at night the next sol opens. Once the mission is over, one more sol |
+| 1–9 | once the mission is over, play that many more sols |
 | C | comms on or off, for this run |
 | P | show or hide the scratchpad: today's list, the note, the orders |
 | O | settings |

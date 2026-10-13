@@ -4,7 +4,8 @@
 
 WASD drive (hold to keep going)   M map   X mark   T console
 TAB talk to the planner, on an open line or beside the pad   U urgent call, anywhere
-N close the line   C comms on / off   V what it sees   H hide/show its reasoning
+N close the line, or one more sol once the mission is over   1-9 that many more sols
+C comms on / off   V what it sees   H hide/show its reasoning
 O settings   P show/hide the scratchpad   Q end the sol   ESC quit
 SPACE the rover has finished the leg -- with ROVER_PAUSE key
 
@@ -65,6 +66,12 @@ import settings as S
 import sight
 from world import World
 
+def headless():
+    """No window: nobody is watching, so nobody is at the desk and nobody is there to
+    say whether the mission goes on."""
+    return os.environ.get("SDL_VIDEODRIVER") == "dummy"
+
+
 DIRS = {pygame.K_w: (0, -1), pygame.K_s: (0, 1), pygame.K_a: (-1, 0), pygame.K_d: (1, 0),
         pygame.K_UP: (0, -1), pygame.K_DOWN: (0, 1), pygame.K_LEFT: (-1, 0),
         pygame.K_RIGHT: (1, 0)}
@@ -119,8 +126,7 @@ def read_flags(argv, prefs):
         registry.apply(registry.PRESETS[args.preset])
     S.OUTAGE_SOLS = tuple(args.outage or ())
     # With no window, nobody is at the desk unless the flag says so.
-    comms = (args.comms == "on" if args.comms else
-             False if os.environ.get("SDL_VIDEODRIVER") == "dummy" else None)
+    comms = args.comms == "on" if args.comms else False if headless() else None
     flags = {"MAP_FORMAT": args.map, "APP_ARENA": args.arena, "MODEL": args.model,
              "EXECUTOR": args.executor, "ROVER_PAUSE": args.pause,
              "MISSION_SOLS": args.sols, "COMMS": comms}
@@ -185,7 +191,7 @@ def main():
     # The run starts recording immediately. Whether it is kept is asked at the end;
     # see logs.py for why that order and not the other one.
     runs = pathlib.Path(__file__).resolve().parent.parent / "runs"
-    run = logs.Run(runs, headless=os.environ.get("SDL_VIDEODRIVER") == "dummy")
+    run = logs.Run(runs, headless=headless())
 
     # SIGTERM keeps the run and exits. SDL would turn it into a window-close, which asks
     # K / D / ESC -- and a headless run has nobody to answer, so it waited for ever.
@@ -378,8 +384,23 @@ def main():
 
     def mission_over():
         """The last sol is done, or the rover is lost: too little charge ever to reach
-        the pad again, which is the only thing that recharges it."""
-        return w.day_over and (w.lost or bool(S.MISSION_SOLS) and w.day >= S.MISSION_SOLS)
+        the pad again, which is the only thing that recharges it. A length changed on the
+        settings screen counts already, though it lands at nightfall."""
+        sols = prefs.pending.get("MISSION_SOLS", S.MISSION_SOLS)
+        return w.day_over and (w.lost or bool(sols) and w.day >= sols)
+
+    # With a window, the end of the mission is a pause, not an exit: N or a digit plays
+    # on, ESC finishes. Headless, nobody is there to choose, so the run is kept and ends.
+    at_end = [False]
+
+    def more(n):
+        """`n` more sols, counted from tonight. This run only, like C."""
+        S.MISSION_SOLS = w.day + n
+        prefs.pending.pop("MISSION_SOLS", None)
+        at_end[0] = False
+        run.record("mission_extended", sols=S.MISSION_SOLS, added=n)
+        conv.write("note", f"{n} more sol{'s' if n > 1 else ''} -- the mission now runs to "
+                           f"sol {S.MISSION_SOLS}")
 
     def answer_quit(e):
         """K keeps the run, D discards it, ESC goes back. Returns whether still asking."""
@@ -602,9 +623,13 @@ def main():
                     models = chat.installed_models()
                     registry.BY_NAME["MODEL"].choices = models
                 # Close the line once she has finished speaking: by day the clock has the
-                # sol back, and at night the next sol opens.
+                # sol back, and at night the next sol opens. Once the mission is over, one
+                # more sol -- or a digit for that many. A lost rover has nothing to play on.
                 elif e.key == pygame.K_n:
-                    pilot.hang_up()
+                    if not pilot.hang_up() and at_end[0] and not w.lost:
+                        more(1)
+                elif at_end[0] and not w.lost and e.unicode and e.unicode in "123456789":
+                    more(int(e.unicode))
                 # V overlays the view block; V again puts it away. A thing you open to
                 # look at is a mode, not a message -- appending it instead once put
                 # twenty-two copies of four thousand characters into one tape. Nothing is
@@ -653,15 +678,23 @@ def main():
             shift()
         # Held while the desk is typing or deciding whether to quit: a word put in is not
         # talked over, a line does not close under it, and the run is not kept from under
-        # the question. A replay whose tape has run out stops at the end of its sol
-        # rather than playing empty ones.
+        # the question. A replay plays every sol its tape holds, however long the mission
+        # was when it was kept, and stops at the end of its last one.
         if mode != "quit":
             if (pilot.tick(conv, w, typing=typing) == "night"
                     and not (script and script.spent)):
-                if mission_over():
+                if script or not mission_over():
+                    nightfall()
+                    scroll = 0
+                elif headless():
                     leave(True)
-                nightfall()
-                scroll = 0
+                elif not at_end[0]:
+                    at_end[0] = True
+                    run.save_night(w)     # kept on disk, whatever is pressed next
+                    run.save_report(report.build(w))
+                    conv.write("note", "the rover is lost -- ESC to finish" if w.lost else
+                               "the mission is over -- N for one more sol, 1-9 for that "
+                               "many, ESC to finish")
         scroll_max = render.draw_chat(pane, conv, w, fonts, said, typing, scroll,
                                       S.SHOW_THINKING, reel,
                                       sight.view(w) if mode == "view" else None, pad_open,

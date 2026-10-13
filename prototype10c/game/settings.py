@@ -25,8 +25,9 @@ STEP_SECONDS = 1.0      # one tile driven, or one step of work, on the mission c
 BATTERY = 500
 
 TIME_SCALE = 1.0        # 2.0 makes the day run twice as fast
-# Sols in a mission. Once the last one ends N is refused, so the run stops there and
-# ESC asks whether to keep it. 0 is no limit.
+# Sols in a mission. Once the last one ends, a run with a window waits: N plays one more
+# sol, 1-9 that many, and ESC asks whether to keep it. A headless run is kept and exits.
+# 0 is no limit.
 MISSION_SOLS = 0
 # The mission clock runs every sol: it opens it, keeps the planner going until she calls
 # `end` or the day runs out, asks for tomorrow's note and rolls the night over, so

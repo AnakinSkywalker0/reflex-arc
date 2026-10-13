@@ -576,16 +576,18 @@ def draw_chat(surf, conv, w, f, line, focused, scroll, show_thinking=True, reel=
         left = pilot.wait_left()
         last = bool(S.MISSION_SOLS) and w.day >= S.MISSION_SOLS
         state = (("MISSION OVER" if last else f"SOL {w.day} OVER") + "  ·  line open  ·  "
-                 + ("N to finish" if last else f"N for sol {w.day + 1}")
+                 + ("N closes it" if last else f"N for sol {w.day + 1}")
                  if w.day_over else f"LINE OPEN  ·  {pilot.line}  ·  N closes it")
         state += "  ·  TAB talk" + (f"  ·  closes in {left:.0f}s" if left is not None
                                     else "")
         tone = C.CHAT_BAD if pilot.line in ("urgent", "sos") else C.CHAT_GOOD
     elif w.day_over and w.lost:
         state, tone = (f"ROVER LOST on sol {w.day}  ·  cannot reach the pad  ·  "
-                       f"keeping the run", C.CHAT_BAD)
+                       f"ESC to finish", C.CHAT_BAD)
     elif w.day_over and S.MISSION_SOLS and w.day >= S.MISSION_SOLS:
-        state, tone = f"MISSION OVER after {w.day} sols  ·  keeping the run", C.CHAT_BAD
+        # A replay plays what its tape holds; only a live run can be played on.
+        more = "" if getattr(conv, "script", None) else "N one more sol  ·  1-9 that many  ·  "
+        state, tone = f"MISSION OVER after {w.day} sols  ·  {more}ESC to finish", C.CHAT_BAD
     elif w.day_over:
         state = (f"SOL {w.day} OVER  ·  "
                  + ("no link tonight: away from the pad  ·  "
