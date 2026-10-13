@@ -30,8 +30,8 @@ import prompts
 from sight import status_line   # one wording for the morning and the view
 
 
-WHO = ("status", "you", "urgent", "auto", "gemma", "think", "error", "note", "view",
-       "call", "result")
+WHO = ("status", "you", "brief", "urgent", "auto", "gemma", "think", "error", "note",
+       "view", "call", "result")
 
 
 # Control tokens the template leaks into `content`. Every one of eight gemma turns ended
@@ -247,6 +247,8 @@ class Conversation:
         self.free_denied = 0      # looks refused past the cap, against FREE_GRACE
         self.ended = False        # she called `end`, or it was called for her
         self.cutting = False      # the desk has called: stop after the call in hand
+        self.free = False         # before the sol begins: her words cost no sol time.
+                                  # Her first call of any kind begins it
         self.nudged = False       # ...and whether it has been told it narrated a call
         self.narrated = 0         # how often it wrote a call out and could not be read
         self.recovered = 0        # ...and how often one was read out of the text and run
@@ -359,14 +361,12 @@ class Conversation:
         between and the allowance is a different number by the time this goes out.
 
         `end` is always in it. The way out cannot be the thing she is unable to reach.
-        Nor are the calls to mission control budgeted: with someone at the desk, `sos` is
-        offered everywhere and `radio` beside the pad, and with nobody there neither is.
+        Nor is the radio budgeted: it is offered beside the pad with someone at the desk,
+        and otherwise not at all.
         """
         names = ["end"]
-        if S.COMMS:
-            names.append("sos")
-            if self.world.docked:
-                names.append("radio")
+        if S.COMMS and self.world.docked:
+            names.append("radio")
         if self.moves < S.MOVE_HOPS:
             names += ["goto", "execute"]   # both spend steps
         if self.frees < S.FREE_HOPS:
@@ -374,7 +374,8 @@ class Conversation:
             # model that took to writing instead of driving. It stays offered after the
             # day's steps are gone, which is deliberate -- a `goto` that spends the last
             # step mid-drive used to end the sol with the whole day unwritten.
-            names += ["distance", "count", "count_cells", "todo", "strike", "remember"]
+            names += ["distance", "count", "count_cells", "todo", "strike", "remember",
+                      "forget"]
         return tuple(n for n in skills.NAMES if n in names)
 
     def _maybe_go(self):
@@ -549,8 +550,10 @@ class Conversation:
                    hops=self.hops, tools=list(self._tools_sent or skills.NAMES),
                    model=getattr(self, "_sent_model", S.MODEL))
         # Before any call in this answer runs: the thinking happened first, so a sol
-        # that ran out while she thought refuses the drive she thought of.
-        self._think(secs)
+        # that ran out while she thought refuses the drive she thought of. Words before
+        # the sol begins -- a question about her briefing -- are free.
+        if not (self.free and not wanted):
+            self._think(secs)
         said, junk, faked = self._reply()
         if faked:
             self.faked += 1
@@ -621,6 +624,7 @@ class Conversation:
         things that stop a turn that never would.
         """
         first, extra = wanted[0], wanted[1:]
+        self.free = False                   # she has acted: the sol has begun
         if extra:
             self._refuse(extra, "REFUSED -- one call at a time. This one did not run "
                                 "and nothing happened. You get the map back after the "
@@ -632,11 +636,11 @@ class Conversation:
             self._answer(first, move=False, counts=False)
             self._stop("she called end")
             return
-        if name in ("radio", "sos"):
+        if name == "radio":
             # A call that got through ends her turn: the desk answers, or does not.
             self._answer(first, move=False, counts=False)
             if skills.got_through(self.calls[-1]):
-                self._stop(f"she called mission control ({name})")
+                self._stop("she radioed mission control")
             else:
                 self._next()
             return

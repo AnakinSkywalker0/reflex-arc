@@ -1,5 +1,6 @@
-"""The mission clock and the line: sols that open, run and roll over by themselves, and
-the desk that can talk to her only from the pad or by urgent call.
+"""The mission clock and the desk's windows: sols that open, run and roll over by
+themselves, and the desk that talks to her before and after them, when she radios, or by a
+one-way urgent call.
 
     .venv/bin/python game/test_autopilot.py
 
@@ -44,8 +45,8 @@ class Inline:
 chat.threading = types.SimpleNamespace(Thread=Inline)
 
 
-def call(name, **args):
-    return {"name": name, "arguments": args}
+def call(skill, **args):
+    return {"name": skill, "arguments": args}
 
 
 END = ("Done for today.", [call("end")])
@@ -123,7 +124,7 @@ def test_her_end_closes_the_sol_and_dusk_asks_for_the_note():
     print("end closes the sol")
     w = World()
     model = Model([("", [call("count", kind="rock")]), END,
-                   ("", [call("remember", text="the C opens east")]), END])
+                   ("", [call("remember", name="note", text="the C opens east")]), END])
     S.MISSION_SOLS = 1
     try:
         convs, rows, nights = fly(w, model)
@@ -136,7 +137,7 @@ def test_her_end_closes_the_sol_and_dusk_asks_for_the_note():
     ok &= check("two turns: the day and the dusk", len(opened) == 2, str(opened))
     ok &= check("the dusk turn asks for the note", "remember" in opened[1])
     ok &= check("and on the last sol, for a report", "report" in opened[1])
-    ok &= check("the note was written", w.notes.memory == "the C opens east")
+    ok &= check("the note was written", w.notes.memory == {"note": "the C opens east"})
     ok &= check("the closing is on the tape, with why",
                 any(r["kind"] == "sol_closed" and r["why"] == "she called end"
                     for r in rows), str([r for r in rows if r["kind"] == "sol_closed"]))
@@ -318,7 +319,7 @@ def test_the_cloud_drops_for_a_sol_and_comes_back():
         replies = []
         for sol in (1, 2, 3):
             replies += [("", [call("count", kind="rock")]), END,
-                        ("", [call("remember", text=f"sol {sol}")]), END]
+                        ("", [call("remember", name="note", text=f"sol {sol}")]), END]
         w = World()
         convs, rows, nights = fly(w, Cloud(replies), frames=60, link=chat.Link(probe))
     finally:
@@ -347,7 +348,7 @@ def test_three_sols_with_no_key_pressed():
     for sol in (1, 2, 3):
         replies += [("", [call("todo", text=f"survey, sol {sol}")]),
                     ("", [call("count", kind="rock")]), END,
-                    ("", [call("remember", text=f"note from sol {sol}")]), END]
+                    ("", [call("remember", name="note", text=f"note from sol {sol}")]), END]
     model = Model(replies)
     S.MISSION_SOLS = 3
     try:
@@ -363,9 +364,9 @@ def test_three_sols_with_no_key_pressed():
     ok &= check("the note crossed each night",
                 any("note from sol 1" in json.dumps(m) for m in model.sent[5]))
     ok &= check("and the clock pointed her at it",
-                "note from last night" in said_by(convs[1], "auto")[0])
+                "Your memory is in your view" in said_by(convs[1], "auto")[0])
     ok &= check("the last note is the report, and it is kept",
-                w.carry()["memory"] == "note from sol 3")
+                w.carry()["memory"] == [["note", "note from sol 3"]])
     ok &= check("nothing was typed by an operator",
                 not any(said_by(c, "you") for c in convs))
     return ok
@@ -388,10 +389,11 @@ def test_the_prompt_says_who_closes_the_sol_and_who_can_be_reached():
                                                          and "sos(" not in p))
         ok &= check(f"{tag}: never says 'auto', which reads as avoid=auto", "auto" not in p)
         if comms:
-            ok &= check("on: the pad is the link, and URGENT stops her",
-                        "the pad is your link" in flat and "URGENT" in flat)
-            ok &= check("on: on the line her end hands back",
-                        "hands the turn back to them" in flat)
+            ok &= check("on: the desk keeps to the edges, and URGENT stops her",
+                        "keep to the edges of your sol" in flat and "URGENT" in flat
+                        and "one-way" in flat)
+            ok &= check("on: a radio call costs the sol, and on the line her end hands back",
+                        "comes off the sol" in flat and "hands the turn back to them" in flat)
         else:
             ok &= check("off: nobody is at the desk", "Nobody is at mission control's desk"
                         in flat)
@@ -554,7 +556,7 @@ def test_a_drive_at_dusk_replays_as_refused():
     print("replay: a drive after the sol closed")
     w, calls, w2, r = live_then_replay([
         ("", [call("count", kind="rock")]), END,
-        ("", [call("remember", text="note")]),
+        ("", [call("remember", name="note", text="note")]),
         ("", [call("goto", x=15, y=10)]), END])
     drive = [c for c in calls if c.name == "goto"][0]
     ok = check("live: the dusk drive was refused", drive.result.startswith("OUT_OF_TIME"),
@@ -592,7 +594,7 @@ def test_a_turn_the_cap_ended_replays_as_two():
 
 
 class Desk:
-    """Someone at the desk for the length of a `with`, and `MISSION_SOLS` set alongside."""
+    """Someone at the desk -- or not -- for the length of a `with`, and `MISSION_SOLS`."""
 
     def __init__(self, on=True, sols=0):
         self.on, self.sols = on, sols
@@ -607,16 +609,17 @@ class Desk:
         prompts.use(prompts.DEFAULT)
 
 
-def sol(w, model, rover=None):
-    """One sol's conversation and clock, as `main.py` holds them. `rover`, a one-item
-    list, says whether the rover has finished its leg -- False holds the next request."""
+def sol(w, model, rover=None, attended=True):
+    """One sol's conversation and clock, as `main.py` holds them with a window open.
+    `rover`, a one-item list, says whether the rover has finished its leg -- False holds
+    the next request."""
     rows = []
     w.recorder = lambda kind, **f: rows.append({"kind": kind, **f})
     c = model.talk(chat.Conversation(w))
     if rover is not None:
         c.ready = lambda: rover[0]
     c.open_day(w)
-    return c, autopilot.Autopilot(), rows
+    return c, autopilot.Autopilot(attended=attended), rows
 
 
 def until(c, pilot, w, test, start=0, frames=300):
@@ -629,106 +632,242 @@ def until(c, pilot, w, test, start=0, frames=300):
     return None, None
 
 
-def test_the_night_line_opens_beside_the_pad_and_waits():
-    print("the night line")
+WAIT = int(S.COMMS_WAIT)
+
+
+def test_the_morning_waits_for_the_desk_then_starts_her():
+    print("the morning window")
     with Desk():
         w = World()
-        c, pilot, rows = sol(w, Model([END, ("", [call("remember", text="n")]), END]))
-        opened, _ = until(c, pilot, w, lambda got: pilot.line)
-        ok = check("after her report the line is open for the night",
-                   opened is not None and pilot.line == "night" and w.day_over)
-        ok &= check("the dusk turn told her so, and asked for the report",
-                    "line is open tonight" in said_by(c, "auto")[-1])
-        early, _ = until(c, pilot, w, lambda got: got == "night", start=opened + 1,
-                         frames=int(S.COMMS_WAIT) - 1)
-        ok &= check("nobody answering, it waits out COMMS_WAIT", early is None)
-        late, _ = until(c, pilot, w, lambda got: got == "night", start=opened + int(S.COMMS_WAIT))
-        ok &= check("then the night falls by itself", late is not None, str(late))
-        ok &= check("and the tape has the line opening and closing",
-                    [r.get("opened") or r.get("closed") for r in rows if r["kind"] == "line"]
-                    == ["night", "night"])
+        model = Model([END])
+        c, pilot, rows = sol(w, model)
+        pilot.tick(c, w, now=0.0)
+        ok = check("before the sol, the clock holds the morning window",
+                   pilot.wait == "morning" and not model.sent)
+        early, _ = until(c, pilot, w, lambda got: model.sent, start=1, frames=WAIT - 2)
+        ok &= check("nobody typing, it waits out COMMS_WAIT", early is None)
+        pilot.tick(c, w, now=5.0, typing=True)
+        late, _ = until(c, pilot, w, lambda got: model.sent, start=6, frames=WAIT + 5)
+        ok &= check("typing holds it: the wait counts from when the typing stopped",
+                    late is not None and late >= 6 + WAIT - 1, str(late))
+        ok &= check("then she starts on the clock's own words",
+                    said_by(c, "auto")[0].startswith("Sol 1 has begun"))
+    with Desk():
+        w = World()
+        c, pilot, _ = sol(w, Model([END]), attended=False)
+        pilot.tick(c, w, now=0.0)
+        ok &= check("with no window, nobody waits: she starts at once", c.turn_by == "auto")
     return ok
 
 
-def test_no_line_away_from_the_pad_or_with_nobody_at_the_desk():
-    print("no line")
+def test_start_briefs_her():
+    print("/start")
     with Desk():
         w = World()
-        w.pos = (3, 3)
-        c, pilot, _ = sol(w, Model([END, END]))
-        t, _ = until(c, pilot, w, lambda got: got == "night", frames=20)
-        ok = check("stranded, the night falls with no line", t is not None and not pilot.line)
-        ok &= check("and dusk told her only sos gets through",
-                    "no line tonight" in said_by(c, "auto")[-1])
+        model = Model([("", [call("count", kind="rock")]), END])
+        c, pilot, _ = sol(w, model)
+        pilot.tick(c, w, now=0.0)
+        ok = check("/start with words is taken", pilot.start(c, w, "survey the north-west")
+                   is None)
+        until(c, pilot, w, lambda got: c.turn_by, start=1, frames=3)
+        sent = model.sent[0][-2]["content"]
+        ok &= check("the clock's paragraph comes first, and the desk's words are appended",
+                    sent.startswith("Sol 1 has begun") and sent.endswith(
+                        "Mission control's instructions for today: survey the north-west"),
+                    sent[-120:])
+        ok &= check("on the tape as a briefed turn, not the clock's alone", c.turn_by == "brief")
+        ok &= check("/start again is refused: the sol has started",
+                    pilot.start(c, w, "") is not None)
+    with Desk():
+        w = World()
+        w.pos, w.stranded = (3, 3), True
+        model = Model([END])
+        c, pilot, _ = sol(w, model)
+        pilot.tick(c, w, now=0.0)
+        pilot.start(c, w, "come home")
+        until(c, pilot, w, lambda got: c.turn_by, start=1, frames=3)
+        ok &= check("away from the pad, the briefing arrives marked urgent",
+                    c.turn_by == "urgent" and "URGENT -- Mission control's instructions"
+                    in model.sent[0][-2]["content"])
     with Desk(on=False):
         w = World()
-        c, pilot, _ = sol(w, Model([END, END]))
-        t, _ = until(c, pilot, w, lambda got: got == "night", frames=20)
-        ok &= check("with nobody at the desk, no line beside the pad either",
-                    t is not None and not pilot.line)
+        c, pilot, _ = sol(w, Model([END]))
+        pilot.tick(c, w, now=0.0)
+        ok &= check("comms off: a briefing is refused", "comms are off" in
+                    (pilot.start(c, w, "go north") or ""))
+        ok &= check("but /start alone starts her", pilot.start(c, w, "") is None)
+        ok &= check("and words typed in the window are a briefing, refused the same way",
+                    "comms are off" in (pilot.say(c, w, "go north") or ""))
     return ok
 
 
-def test_the_desk_talks_on_the_night_line_and_n_closes_it():
+def test_a_question_before_the_sol_is_free():
+    print("a question before she starts")
+    with Desk():
+        w = World()
+        model = Model([("Should I keep clear of the C?", []),     # words, not work
+                       ("Understood.", [call("goto", x=15, y=12)]), END])
+        c, pilot, rows = sol(w, model)
+        pilot.tick(c, w, now=0.0)
+        pilot.start(c, w, "survey the north-west")
+        until(c, pilot, w, lambda got: pilot.wait == "question", start=1, frames=5)
+        ok = check("words in answer to the briefing hold a question window",
+                   pilot.wait == "question")
+        ok &= check("and cost the sol nothing", w.time_left == S.DAY_SECONDS,
+                    str(w.time_left))
+        ok &= check("the desk answers", pilot.say(c, w, "yes, keep clear") is None)
+        until(c, pilot, w, lambda got: pilot.phase == "day", start=10, frames=5)
+        ok &= check("her first call begins the sol, and the window closes",
+                    pilot.phase == "day" and pilot.wait is None and not c.free
+                    and w.steps > 0, f"{pilot.phase} {pilot.wait} {c.free} {w.steps}")
+        ok &= check("from which point her thinking is charged",
+                    w.time_left < S.DAY_SECONDS - w.steps * S.STEP_SECONDS + 1e-9
+                    or w.time_left == S.DAY_SECONDS - w.steps * S.STEP_SECONDS,
+                    str(w.time_left))
+    with Desk():
+        w = World()
+        model = Model([("Should I keep clear of the C?", []), END])
+        c, pilot, _ = sol(w, model)
+        pilot.tick(c, w, now=0.0)
+        pilot.start(c, w, "go")
+        until(c, pilot, w, lambda got: pilot.wait == "question", start=1, frames=5)
+        pilot.next()
+        until(c, pilot, w, lambda got: c.turn_by == "auto", start=10, frames=5)
+        ok &= check("unanswered, /next starts her with nothing added",
+                    said_by(c, "auto") and "nothing to add" in said_by(c, "auto")[-1],
+                    str(said_by(c, "auto")))
+    return ok
+
+
+def test_the_night_waits_whatever_the_comms():
+    print("the night window")
+    for on, docked, talk in ((True, True, True), (True, False, False), (False, True, False)):
+        with Desk(on=on):
+            w = World()
+            if not docked:
+                w.pos = (3, 3)
+            c, pilot, rows = sol(w, Model([END, END]), attended=True)
+            pilot.tick(c, w, now=0.0)
+            pilot.next()
+            opened, _ = until(c, pilot, w, lambda got: pilot.wait == "night", start=1)
+            tag = f"comms {'on' if on else 'off'}, {'beside' if docked else 'away from'} the pad"
+            ok_ = check(f"{tag}: the night waits", opened is not None)
+            ok_ &= check(f"{tag}: talk {'allowed' if talk else 'refused'}",
+                         pilot.talk == talk and (pilot.why_not() is None) == talk)
+            early, _ = until(c, pilot, w, lambda got: got == "night", start=opened + 1,
+                             frames=WAIT - 2)
+            ok_ &= check(f"{tag}: for COMMS_WAIT", early is None)
+            pilot.next()
+            t, _ = until(c, pilot, w, lambda got: got == "night", start=opened + WAIT,
+                         frames=2)
+            ok_ &= check(f"{tag}: and /next ends it", t is not None)
+            if not ok_:
+                return False
+    return True
+
+
+def test_the_desk_talks_on_the_night_line():
     print("talking at night")
     with Desk():
         w = World()
         model = Model([END, END])
         c, pilot, _ = sol(w, model)
-        opened, _ = until(c, pilot, w, lambda got: pilot.line)
-        model.replies += [("Understood: east first.", [call("remember", text="east")]),
-                          END]
-        ok = check("the desk speaks", pilot.say(c, "tomorrow, go east first"))
-        ok &= check("as the operator, not urgent", c.turn_by == "you")
-        t, got = until(c, pilot, w, lambda got: got == "night", start=opened + 1, frames=5)
+        pilot.tick(c, w, now=0.0)
+        pilot.next()
+        opened, _ = until(c, pilot, w, lambda got: pilot.wait == "night", start=1)
+        model.replies += [("Understood: east first.",
+                           [call("remember", name="plan", text="east first")]), END]
+        ok = check("the desk speaks", pilot.say(c, w, "tomorrow, go east first") is None)
+        ok &= check("as the operator", c.turn_by == "you")
+        t, _ = until(c, pilot, w, lambda got: got == "night", start=opened + 1, frames=5)
         ok &= check("her end on the line hands back rather than rolling the night",
-                    t is None and pilot.line == "night" and w.notes.memory == "east")
-        pilot.hang_up()
+                    t is None and pilot.wait == "night" and w.notes.memory == {"plan":
+                                                                              "east first"})
+        pilot.next()
         t, _ = until(c, pilot, w, lambda got: got == "night", start=opened + 10, frames=2)
-        ok &= check("N closes it at once, well inside COMMS_WAIT", t is not None)
+        ok &= check("/next ends it at once", t is not None)
     return ok
 
 
-def test_urgent_stops_her_after_the_call_in_hand():
-    print("U, mid-drive")
+def test_a_radio_call_mid_sol_costs_the_sol():
+    print("radio from the pad")
+    with Desk():
+        w = World()
+        model = Model([("", [call("radio", text="is the C worth a sol?")]),
+                       ("", [call("count", kind="rock")]), END])
+        c, pilot, rows = sol(w, model)
+        pilot.tick(c, w, now=0.0)
+        pilot.next()
+        opened, _ = until(c, pilot, w, lambda got: pilot.wait == "radio", start=1)
+        ok = check("her radio from beside the pad opens the line", opened is not None
+                   and any(r["kind"] == "radio" for r in rows))
+        before = w.time_left
+        t, _ = until(c, pilot, w, lambda got: pilot.wait is None, start=opened + 1)
+        ok &= check("nobody answers: after COMMS_WAIT it closes", t is not None
+                    and t - opened >= WAIT, str(t))
+        ok &= check("and every second it was open came off the sol",
+                    abs((before - w.time_left) - (t - opened)) <= 1.0,
+                    f"{before - w.time_left:.1f}s charged over {t - opened} frames")
+        until(c, pilot, w, lambda got: w.day_over, start=t + 1, frames=5)
+        ok &= check("she carries on, told the line is closed",
+                    "line to mission control is closed" in said_by(c, "auto")[-2])
+    with Desk():
+        w = World()
+        c = chat.Conversation(w)
+        ok &= check("radio is offered beside the pad", "radio" in c._allowed())
+        w.pos = (3, 3)
+        ok &= check("and not away from it", "radio" not in c._allowed())
+        ok &= check("sos is gone", "sos" not in skills.NAMES)
+    with Desk(on=False):
+        ok &= check("with nobody at the desk, radio is not offered",
+                    "radio" not in chat.Conversation(World())._allowed())
+    return ok
+
+
+def test_urgent_is_one_way_and_stops_her_after_the_call_in_hand():
+    print("urgent, from the terminal")
     with Desk():
         w = World()
         model = Model([("", [call("goto", x=15, y=12)]),
                        ("", [call("goto", x=18, y=12)])])     # what she would do next
         rover = [True]
         c, pilot, rows = sol(w, model, rover)
-        pilot.tick(c, w, now=0.0)                   # the morning turn goes out
+        pilot.tick(c, w, now=0.0)
+        ok = check("refused before she has started", "not working" in
+                   (pilot.send_urgent(c, w, "come home") or ""))
+        pilot.next()
+        pilot.tick(c, w, now=1.0)
+        pilot.tick(c, w, now=2.0)                   # the morning turn goes out
         rover[0] = False                            # ...and the rover drives its leg
         c.pump()
-        ok = check("one drive ran, the next request is held for the rover",
-                   len(c.calls) == 1 and c.waiting)
-        ok &= check("U gets through from away from the pad",
-                    not w.docked and pilot.talk(c, w, urgent=True, now=1.0) is None)
+        ok &= check("one drive ran, the next request is held for the rover",
+                    len(c.calls) == 1 and c.waiting)
+        ok &= check("urgent gets through from away from the pad",
+                    not w.docked and pilot.send_urgent(c, w, "return to the pad now") is None)
         rover[0] = True
         c.pump()
         ok &= check("and she stopped after that call: nothing more was asked",
-                    len(model.sent) == 1 and len(c.calls) == 1 and not c.waiting,
-                    f"{len(model.sent)} sent")
-        model.replies = [("Heading home.", [call("goto", x=15, y=14)]), END]
-        pilot.say(c, "return to the pad now")
-        c.pump()
-        ok &= check("the desk's first word is marked urgent, to her and on the tape",
-                    c.turn_by == "urgent" and c.messages[-1]["role"] != "user"
-                    and any(str(m.get("content", "")).startswith("URGENT")
-                            for m in c.messages))
-        t, _ = until(c, pilot, w, lambda got: pilot.line is None, start=2, frames=5)
-        ok &= check("her end hands back: the line stays open, the sol goes on",
-                    t is None and not w.day_over)
-        pilot.hang_up()
-        until(c, pilot, w, lambda got: pilot.line is None, start=10, frames=2)
-        until(c, pilot, w, lambda got: said_by(c, "auto")[-1:] != said_by(c, "auto")[:1],
-              start=12, frames=2)
-        ok &= check("closed, the clock has the sol back and tells her",
-                    "line to mission control is closed" in said_by(c, "auto")[-1])
-        t, _ = until(c, pilot, w, lambda got: w.day_over, start=14, frames=5)
-        ok &= check("and her own end closes the sol again", t is not None and
+                    len(model.sent) == 1 and len(c.calls) == 1, f"{len(model.sent)} sent")
+        model.replies = [("Heading home.", [call("goto", x=15, y=15)]), END]
+        until(c, pilot, w, lambda got: w.day_over, start=3, frames=10)
+        ok &= check("it arrives marked urgent, on the tape too",
+                    any(str(m.get("content", "")).startswith("URGENT from mission control")
+                        for m in c.messages) and any(r["kind"] == "urgent" for r in rows))
+        ok &= check("it is one-way: no window opened for it", not any(
+            r["kind"] == "window" and r.get("opened") not in ("morning",) for r in rows
+            if r.get("opened")) or pilot.wait != "radio")
+        ok &= check("and her end after it closes the sol, under the clock",
                     [r["why"] for r in rows if r["kind"] == "sol_closed"]
                     == ["she called end"])
+    with Desk(on=False):
+        w = World()
+        c, pilot, _ = sol(w, Model([END]))
+        ok &= check("comms off: urgent is refused", "comms are off" in
+                    (pilot.send_urgent(c, w, "x") or ""))
+    w = World()
+    c, tape_pilot = chat.Conversation(w), autopilot.Autopilot(live=False)
+    ok &= check("a replay cannot be called", "replay" in
+                (tape_pilot.send_urgent(c, w, "x") or ""))
 
     # Mid-request: the reply that was already coming runs its one call, then stops.
     w = World()
@@ -746,64 +885,16 @@ def test_urgent_stops_her_after_the_call_in_hand():
     return ok
 
 
-def test_her_calls_to_the_desk():
-    print("radio and sos")
-    w = World()
-    c = chat.Conversation(w)
-    with Desk():
-        ok = check("beside the pad she is offered radio and sos",
-                   w.docked and {"radio", "sos"} <= set(c._allowed()))
-        w.pos = (3, 3)
-        ok &= check("away from it, sos only", "sos" in c._allowed()
-                    and "radio" not in c._allowed())
-    with Desk(on=False):
-        ok &= check("with nobody at the desk, neither",
-                    not {"radio", "sos"} & set(c._allowed()))
+def test_why_the_desk_cannot_reach_her():
+    print("refused out loud")
     with Desk():
         w = World()
-        w.pos = (3, 3)
-        model = Model([("", [call("radio", text="anyone?")]),       # no link out here
-                       ("", [call("sos", text="a wheel is stuck")]), END])
-        c, pilot, rows = sol(w, model)
-        opened, _ = until(c, pilot, w, lambda got: pilot.line)
-        ok &= check("radio away from the pad does not get through, and her turn goes on",
-                    c.calls[0].result.startswith("NO_LINK") and c.calls[1].name == "sos")
-        ok &= check("her sos opens the line", pilot.line == "sos"
-                    and any(r["kind"] == "sos" and r["text"] == "a wheel is stuck"
-                            for r in rows))
-        t, _ = until(c, pilot, w, lambda got: pilot.line is None, start=opened + 1)
-        ok &= check("nobody answers: after COMMS_WAIT it closes", t is not None
-                    and t - opened >= S.COMMS_WAIT, str(t))
-        until(c, pilot, w, lambda got: w.day_over, start=t + 1, frames=5)
-        ok &= check("and she carries on, told the line is closed",
-                    "line to mission control is closed" in said_by(c, "auto")[1])
-    return ok
-
-
-def test_when_the_desk_can_and_cannot_reach_her():
-    print("TAB and U, refused out loud")
-    w = World()
-    c = chat.Conversation(w)
-    with Desk(on=False):
-        pilot = autopilot.Autopilot()
-        ok = check("comms off: refused, and says how to turn them on",
-                   "C turns them on" in (pilot.talk(c, w) or ""))
-    with Desk():
-        pilot = autopilot.Autopilot()
-        w.pos = (3, 3)
-        ok &= check("away from the pad, TAB is refused and points at U",
-                    "U" in (pilot.talk(c, w) or "") and not pilot.line)
-        pilot.phase = "dusk"
-        ok &= check("once the sol is over, U is refused too",
-                    "sol is over" in (pilot.talk(c, w, urgent=True) or ""))
-        pilot = autopilot.Autopilot()
-        w = World()
-        c = chat.Conversation(w)
-        ok &= check("beside the pad by day, TAB opens the line",
-                    w.docked and pilot.talk(c, w) is None and pilot.line == "pad")
-        tape = autopilot.Autopilot(live=False)
-        ok &= check("a replay never opens one", tape.talk(c, w, urgent=True)
-                    and not tape.open_line(c, "urgent"))
+        c, pilot, _ = sol(w, Model([END]), attended=False)
+        pilot.tick(c, w, now=0.0)
+        ok = check("while she works, words are refused and point at the terminal",
+                   "terminal" in (pilot.say(c, w, "hello") or ""))
+        ok &= check("and /next has nothing to skip", "nothing is waiting" in
+                    (pilot.next() or ""))
     return ok
 
 
@@ -819,7 +910,7 @@ def test_the_desk_leaving_mid_sol_tells_her():
                    "Nobody is at mission control's desk" in c.messages[0]["content"])
         ok &= check("and she was told at her next turn",
                     any("left the desk" in str(m["content"]) for m in c.messages))
-        ok &= check("and sos is no longer offered", "sos" not in c._allowed())
+        ok &= check("and radio is no longer offered", "radio" not in c._allowed())
     return ok
 
 
@@ -844,12 +935,9 @@ def test_a_replay_of_an_urgent_call_matches():
             pilot.tick(c, w, now=0.0)
             rover[0] = False
             c.pump()
-            pilot.talk(c, w, urgent=True, now=1.0)
+            pilot.send_urgent(c, w, "two more drives, then home")
             rover[0] = True
-            pilot.say(c, "two more drives, then hand back")
-            c.pump()
-            pilot.hang_up()
-            until(c, pilot, w, lambda got: got == "night", start=2, frames=40)
+            until(c, pilot, w, lambda got: got == "night", start=1, frames=40)
             tape.close()
             live = [(x.name, x.result) for x in c.calls if x.name != "end"]
             w2 = World()
@@ -864,6 +952,35 @@ def test_a_replay_of_an_urgent_call_matches():
                 [(x.name, x.result) for x in r.calls if x.name != "end"] == live,
                 str(r.diverged))
     ok &= check("and ended where the live rover did", w2.pos == w.pos)
+    return ok
+
+
+def test_the_operators_hand_replays_before_the_call_it_came_before():
+    """A placement typed in the morning window was there for the whole live sol, so the
+    replay has to make it before her first call -- not at nightfall, as it used to."""
+    print("replay: what the operator did, and when")
+    rows = [{"t": 1.0, "day": 1, "kind": "placed", "at": [20, 10], "priority": "high",
+             "cost": 25},
+            {"t": 1.5, "day": 1, "kind": "order", "n": 1, "text": "survey the north"},
+            {"t": 9.0, "day": 1, "kind": "orders", "text": "an old single order"}]
+    calls = [{"t": 2.0, "day": 1, "who": "call", "name": "count", "args": {"kind": "rock"},
+              "ran": True}, {"t": 2.1, "day": 1, "who": "result", "text": "x"}]
+    with tempfile.TemporaryDirectory() as d:
+        (Path(d) / "game.jsonl").write_text("\n".join(json.dumps(r) for r in rows))
+        (Path(d) / "chat.jsonl").write_text("\n".join(json.dumps(r) for r in calls))
+        s = replay.Script(Path(d))
+        ok = check("the morning's placement and order ride with her first call",
+                   [o["kind"] for o in s.turns[0]["ops"]] == ["placed", "order"])
+        ok &= check("what came after her last call waits for nightfall",
+                    [o["kind"] for o in s.ops.get(1, [])] == ["orders"])
+        w = World()
+        done = replay.apply(w, s.turns[0]["ops"])
+        ok &= check("and applying them really places and posts",
+                    (20, 10) in w.here.objectives and w.notes.orders == ["survey the north"],
+                    str(done))
+        replay.apply(w, s.ops[1])
+        ok &= check("an old single-string order replaces the board, as it did",
+                    w.notes.orders == ["an old single order"])
     return ok
 
 
@@ -888,13 +1005,16 @@ if __name__ == "__main__":
                test_a_replay_keeps_each_sols_calls_to_that_sol(),
                test_a_drive_at_dusk_replays_as_refused(),
                test_a_turn_the_cap_ended_replays_as_two(),
-               test_the_night_line_opens_beside_the_pad_and_waits(),
-               test_no_line_away_from_the_pad_or_with_nobody_at_the_desk(),
-               test_the_desk_talks_on_the_night_line_and_n_closes_it(),
-               test_urgent_stops_her_after_the_call_in_hand(),
-               test_her_calls_to_the_desk(),
-               test_when_the_desk_can_and_cannot_reach_her(),
+               test_the_morning_waits_for_the_desk_then_starts_her(),
+               test_start_briefs_her(),
+               test_a_question_before_the_sol_is_free(),
+               test_the_night_waits_whatever_the_comms(),
+               test_the_desk_talks_on_the_night_line(),
+               test_a_radio_call_mid_sol_costs_the_sol(),
+               test_urgent_is_one_way_and_stops_her_after_the_call_in_hand(),
+               test_why_the_desk_cannot_reach_her(),
                test_the_desk_leaving_mid_sol_tells_her(),
-               test_a_replay_of_an_urgent_call_matches()]
+               test_a_replay_of_an_urgent_call_matches(),
+               test_the_operators_hand_replays_before_the_call_it_came_before()]
     print(f"\n{sum(results)}/{len(results)} groups passed")
     sys.exit(0 if all(results) else 1)

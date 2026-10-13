@@ -302,7 +302,7 @@ def _hud(surf, w, f, reel=None):
               (MARGIN, y0 + 62))
     hint = ("SPACE skip the drive   " if reel and reel.busy else
             "WASD drive   M map   X mark   T console   ")
-    surf.blit(f.tiny.render(hint + "TAB talk   U urgent   N close the line   ESC quit",
+    surf.blit(f.tiny.render(hint + "TAB her chat   T terminal   U urgent   ESC quit",
                             True, C.FAINT), (MARGIN, y0 + 84))
     surf.blit(f.tiny.render("O settings   P scratchpad   H thinking   Q end sol   C comms "
                             + ("off" if S.COMMS else "on"),
@@ -467,6 +467,7 @@ CHAT_INDENT = 14
 HEADS = {"status": ("SOL OPEN", C.CHAT_GOOD),
          "you": ("OPERATOR", C.CHAT_OPERATOR),
          "urgent": ("OPERATOR · URGENT", C.CHAT_BAD),
+         "brief": ("MISSION CLOCK · BRIEFED", C.CHAT_OPERATOR),
          # Not the operator's colour: nobody coached a sol the clock opened.
          "auto": ("MISSION CLOCK", C.CHAT_GOOD),
          "gemma": ("PLANNER", C.CHAT_PLANNER),
@@ -532,11 +533,17 @@ def _pad_lines(w, cols, open_):
             out.append(((f"{box} {i:>2} " if k == 0 else " " * 7) + piece, tone, True))
     if not n.todos:
         out.append(("nothing on today's list", C.CHAT_THINK, True))
-    for title, text, tone in (("NOTE FOR TOMORROW", n.memory, C.CHAT_PLANNER),
-                              ("STANDING ORDERS", n.orders, C.CHAT_OPERATOR)):
+    sections = (("MEMORY", [f"{k}: {v}" for k, v in n.memory.items()], C.CHAT_PLANNER),
+                ("STANDING ORDERS", [f"{i}. {t}" for i, t in enumerate(n.orders, 1)],
+                 C.CHAT_OPERATOR))
+    for title, items, tone in sections:
         out.append((title, C.CHAT_MUTED, False))
-        for piece in textwrap.wrap(text, cols) or ["(none)"]:
-            out.append((piece, tone if text else C.CHAT_THINK, True))
+        for item in items:
+            for line in item.splitlines():
+                for piece in textwrap.wrap(line, cols) or [""]:
+                    out.append((piece, tone, True))
+        if not items:
+            out.append(("(none)", C.CHAT_THINK, True))
     return out
 
 
@@ -572,21 +579,23 @@ def draw_chat(surf, conv, w, f, line, focused, scroll, show_thinking=True, reel=
         state, tone = "waiting for the rover...", C.CHAT_SKILL
     elif conv.busy:
         state, tone = ("thinking..." if not conv.say_buf else "answering..."), C.CHAT_GOOD
-    elif pilot and pilot.line:
+    elif pilot and pilot.wait:
         left = pilot.wait_left()
         last = bool(S.MISSION_SOLS) and w.day >= S.MISSION_SOLS
-        state = (("MISSION OVER" if last else f"SOL {w.day} OVER") + "  ·  line open  ·  "
-                 + ("N closes it" if last else f"N for sol {w.day + 1}")
-                 if w.day_over else f"LINE OPEN  ·  {pilot.line}  ·  N closes it")
-        state += "  ·  TAB talk" + (f"  ·  closes in {left:.0f}s" if left is not None
-                                    else "")
-        tone = C.CHAT_BAD if pilot.line in ("urgent", "sos") else C.CHAT_GOOD
+        state = {"morning": f"SOL {w.day} WAITING  ·  /start to brief her or start her",
+                 "question": "SHE ASKS BEFORE STARTING  ·  answer, or /next",
+                 "radio": "RADIO FROM THE PAD  ·  answer, or /next  ·  costs her sol",
+                 "night": ("MISSION OVER" if last else f"SOL {w.day} OVER")
+                          + ("  ·  talk, or /next" if pilot.talk else
+                             "  ·  no line tonight  ·  /next")}[pilot.wait]
+        state += (f"  ·  {left:.0f}s" if left is not None else "  ·  holding")
+        tone = C.CHAT_BAD if pilot.wait == "radio" else C.CHAT_GOOD
     elif w.day_over and w.lost:
         state, tone = (f"ROVER LOST on sol {w.day}  ·  cannot reach the pad  ·  "
                        f"ESC to finish", C.CHAT_BAD)
     elif w.day_over and S.MISSION_SOLS and w.day >= S.MISSION_SOLS:
         # A replay plays what its tape holds; only a live run can be played on.
-        more = "" if getattr(conv, "script", None) else "N one more sol  ·  1-9 that many  ·  "
+        more = "" if getattr(conv, "script", None) else "T, then  sols N  for more  ·  "
         state, tone = f"MISSION OVER after {w.day} sols  ·  {more}ESC to finish", C.CHAT_BAD
     elif w.day_over:
         state = (f"SOL {w.day} OVER  ·  "
@@ -636,9 +645,9 @@ def draw_chat(surf, conv, w, f, line, focused, scroll, show_thinking=True, reel=
     else:
         surf.blit(f.chat.render("TAB to type", True, C.CHAT_MUTED), (x, y))
     hint = ("V or ESC back to the conversation    wheel scrolls" if overlay is not None
-            else "ENTER send    ESC stop typing    /status resend the line" if focused
-            else "TAB talk   V what it sees   H thinking   P scratchpad   O settings   "
-                 "N next sol")
+            else "ENTER send    ESC stop typing    /help lists the commands" if focused
+            else "TAB her chat   T terminal   V what she sees   H thinking   P scratchpad   "
+                 "O settings")
     surf.blit(f.tiny.render(hint, True, C.CHAT_MUTED), (x, H - 22))
     if scroll:
         s = f.tiny.render(f"scrolled back {scroll}", True, C.CHAT_BAD)

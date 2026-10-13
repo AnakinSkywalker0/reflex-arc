@@ -40,7 +40,7 @@ def played():
     w.place_objective((21, 22), "high", 40)
     w.toggle_mark((3, 3))
     w.notes.add("an item the night wipes")
-    w.notes.memory = "the C opens east"
+    w.notes.memory = {"the C": "it opens east", "plan": "- north first\n- then the C"}
     w.notes.order("finish objective 1")
     return w
 
@@ -104,8 +104,19 @@ def test_a_night_from_before_stranding_wakes_at_the_pad():
     kept = roundtrip(played())
     del kept["pos"], kept["stranded"]
     woke = World(carried=kept)
-    return check("no position saved means it woke at the pad, as it always did",
-                 woke.pos == C.SPAWN and not woke.stranded)
+    ok = check("no position saved means it woke at the pad, as it always did",
+               woke.pos == C.SPAWN and not woke.stranded)
+    # Before 10c's memory and board: one paragraph and one order string.
+    kept["memory"], kept["orders"] = "the C opens east", "finish objective 1"
+    woke = World(carried=kept)
+    ok &= check("an old note wakes as one entry called note",
+                woke.notes.memory == {"note": "the C opens east"}, str(woke.notes.memory))
+    ok &= check("and an old order as a board of one",
+                woke.notes.orders == ["finish objective 1"], str(woke.notes.orders))
+    kept["memory"], kept["orders"] = "", ""
+    woke = World(carried=kept)
+    ok &= check("empty ones wake empty", woke.notes.memory == {} and woke.notes.orders == [])
+    return ok
 
 
 def test_the_wrong_arena_is_refused():
@@ -152,7 +163,8 @@ def test_the_night_is_written_down():
                    (run.dir / "night.json").exists())
         kept = run.keep()
         back = logs.load_night(kept)
-        ok &= check("and read back from the kept run", back["memory"] == "the C opens east")
+        ok &= check("and read back from the kept run",
+                    back["memory"][0] == ["the C", "it opens east"], str(back["memory"]))
         ok &= check("a directory with no night says so",
                     _raises(lambda: logs.load_night(Path(d))))
     return ok

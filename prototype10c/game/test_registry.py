@@ -193,7 +193,8 @@ def test_the_screens_draw():
     w.notes.add("drive to objective 2")
     w.notes.add("a long item " * 12)
     w.notes.strike(1)
-    w.notes.memory = "the C is east of the pad"
+    w.notes.memory = {"the C": "east of the pad"}
+    w.notes.order("finish objective 2")
     conv = chat.Conversation(w)
     pane = pygame.Surface((600, 700))
     ok = True
@@ -202,8 +203,10 @@ def test_the_screens_draw():
     lines = [t for t, _, _ in render._pad_lines(w, 60, True)]
     ok &= check("struck items are ticked", any(t.startswith("[x]  1") for t in lines))
     ok &= check("open ones are not", any(t.startswith("[ ]  2") for t in lines))
-    ok &= check("the note and the orders are under the list",
-                "NOTE FOR TOMORROW" in lines and "STANDING ORDERS" in lines)
+    ok &= check("the memory and the orders are under the list",
+                "MEMORY" in lines and "STANDING ORDERS" in lines)
+    ok &= check("by name and by number", "the C: east of the pad" in lines
+                and "1. finish objective 2" in lines, str(lines))
     ok &= check("closed, it is one line", len(render._pad_lines(w, 60, False)) == 1)
     with Sandbox() as sb:
         items = [("preset", k) for k in registry.PRESETS] + \

@@ -2,11 +2,10 @@
                                         [--model TAG] [--think] [--replay runs/<stamp>]
                                         [--comms on|off] [--preset design] [--outage N]
 
-WASD drive (hold to keep going)   M map   X mark   T console
-TAB talk to the planner, on an open line or beside the pad   U urgent call, anywhere
-N close the line, or one more sol once the mission is over   1-9 that many more sols
-C comms on / off   V what it sees   H hide/show its reasoning
-O settings   P show/hide the scratchpad   Q end the sol   ESC quit
+TAB her chat (/help lists its commands)   T your terminal (help lists its commands)
+U the terminal with `urgent ` typed   C comms on / off   Q end the sol now
+V what she sees   H hide/show her reasoning   P show/hide the scratchpad   O settings
+WASD drive (hold to keep going)   M map   X mark   ESC quit
 SPACE the rover has finished the leg -- with ROVER_PAUSE key
 
 Settings come from `registry.py`: the code's defaults, then `user_settings.json`, then
@@ -17,21 +16,19 @@ rover maps what it drives past, out to `VISION_RADIUS`, and that is the only thi
 lifts fog -- Ingenuity is cut, so a sol of driving is the only way the map fills in.
 
 **Three things are written down, and they differ by who holds the pen.** She keeps a
-list for today that `todo` adds to and `strike` crosses off, wiped at nightfall, and one
-note that `remember` rewrites and the night does not take. The third is the operator's,
-typed at TAB on an open line and read-only to her:
+list for today that `todo` adds to and `strike` crosses off, wiped at nightfall, and a
+memory of named entries that `remember` writes and `forget` drops, which the night does
+not take. The third is the operator's board, posted to from her chat and read-only to her.
 
-    /orders finish objective 3 today      her standing job. Stands until replaced;
-                                          `/orders` alone clears it
-    /place 21 8 high 40                   work put on the map: cell, priority, cost.
-                                          Refused if the rover could never reach it
-    /status                               the status line, as she reads it
+**Two places to type.** Her chat (TAB) is for talking to her, and works only in the
+windows before and after a sol, or when she radios: /start, /next, /order, /orders,
+/retract, /status, /help, or plain words. The terminal (T) runs the mission and the game:
+urgent, comms, sols, place, and goto / distance / execute for playing by hand.
 
 **The clock runs every sol.** It opens each sol, keeps her going until she calls `end`,
-asks for tomorrow's note and rolls the night over, and keeps the run once the mission is
-over, so `--sols 3` is a whole expedition from one launch. With comms on (COMMS, C) the
-desk can talk to her beside the pad, and at night after she reports; away from the pad
-only U from here and `sos` from her get through. `autopilot.py` says how.
+asks her to bring her memory up to date and rolls the night over, so `--sols 3` is a whole
+expedition from one launch. With a window open it waits for the desk before each sol and
+after each one; a run with no window never waits. `autopilot.py` says how.
 
 **Live and replay.** Live, the model decides. `--replay` re-issues a kept run's calls
 with no model in the loop and halts if the world stops matching the tape -- so a sol
@@ -256,8 +253,9 @@ def main():
         return now >= settle[0]
 
     conv.ready = ready
-    # The clock, and the line to the desk. One per sol; a replay's never opens a line.
-    pilot = autopilot.Autopilot(live=not script)
+    # The clock, and the desk's windows. One per sol. A replay's never waits, and nor does
+    # a run with no window: nobody is there.
+    pilot = autopilot.Autopilot(live=not script, attended=not headless())
     # Whether anyone was at the desk last frame. C and the settings screen both change
     # COMMS, and both land at once, so the change is noticed here rather than at either.
     at_desk = [S.COMMS]
@@ -286,55 +284,104 @@ def main():
         pygame.quit()
         sys.exit()
 
-    def place(world, text):
-        """`/place X Y [high|medium|low] [cost]` -- work put on the map at nightfall.
+    def place(text):
+        """`place X Y [high|medium|low] [cost]` -- work put on the map, from the terminal.
 
         Priority and cost default to medium and 30, which is a crossing of the 30 and
-        therefore the objective that is worth exactly one sol's travelling. Both are
-        facts mission control hands over, so both are the operator's to say.
+        therefore the objective that is worth exactly one sol's travelling. It sits under
+        the fog and she is not told: she finds it by driving, or the board says so.
 
         The refusal wording comes back from `world.place_objective` rather than being
-        written again here: the guard and the explanation of the guard belong together,
-        and this is a console that types them out.
+        written again here: the guard and the explanation of the guard belong together.
         """
         words = text.split()
         nums = [t for t in words if t.lstrip("-").isdigit()]
         if len(nums) < 2:
-            return "PLACE NEEDS A CELL -- try  /place 21 8 high 40"
+            return "place needs a cell -- try  place 21 8 high 40", None
         cell = (int(nums[0]), int(nums[1]))
         priority = next((t for t in words if t.lower() in ("high", "medium", "low")),
                         "medium")
         cost = int(nums[2]) if len(nums) > 2 else 30
         if cost <= 0:
-            return f"PLACE REFUSED -- {cost} steps of work is not work."
-        o, why = world.place_objective(cell, priority.lower(), cost)
+            return f"{cost} steps of work is not work", None
+        o, why = w.place_objective(cell, priority.lower(), cost)
         if not o:
-            return f"PLACE REFUSED -- {why}"
-        return (f"PLACED -- objective {o.glyph} at ({cell[0]},{cell[1]}), "
-                f"{o.priority} priority, {o.cost} steps of work. It is under fog until "
-                f"she drives to it.")
+            return why, None
+        return None, (f"placed objective {o.glyph} at ({cell[0]},{cell[1]}), {o.priority} "
+                      f"priority, {o.cost} steps of work, under the fog")
 
-    def orders(world, text):
-        """`/orders ...` -- mission control writes, and the line the operator sees back.
+    def board(verb, rest):
+        """The orders board, from her chat. Returns the line for the pane.
 
-        Typed at nightfall, read every request after it, and never cleared by a sol
-        rolling over. Refused rather than cut when it is too long, for the same reason
-        `remember` is: truncating an instruction loses the end, which is where the thing
-        actually being asked for tends to sit.
-
-        It goes on the tape as its own event. A replay has to reissue it, and an order
-        recovered by parsing the message log would be indistinguishable from the
-        operator having simply said something.
+        Mission control, not conversation: it goes to its own store, which the night does
+        not clear, rather than the message log, which it does. Refused rather than cut when
+        too long, for the same reason `remember` is: truncating an instruction loses the end,
+        where the thing actually being asked for tends to sit. Each change goes on the tape
+        as its own row, which is how a replay posts it again before the same call.
         """
-        text = text.strip()
-        if len(text) > S.ORDERS_CHARS:
-            return (f"ORDERS REFUSED -- {len(text)} characters, and the cap is "
-                    f"{S.ORDERS_CHARS}. Nothing changed. Say it shorter.")
-        world.notes.order(text)
-        world.record("orders", text=text)
-        if not text:
-            return "ORDERS CLEARED -- she has no standing instruction now."
-        return f"ORDERS SET -- she reads this on every call until it is replaced: {text}"
+        n = w.notes
+        rest = rest.strip()
+        if verb == "orders" and not rest:
+            return ("the board is empty" if not n.orders else
+                    "the board -- " + "   ".join(f"{i}. {t}" for i, t in
+                                                 enumerate(n.orders, 1)))
+        if pilot.why_not():
+            return pilot.why_not()
+        if conv.busy:
+            return "she is still talking -- wait until she has finished"
+        if verb == "orders" and rest.lower() == "clear":
+            n.clear_orders()
+            w.record("orders_cleared")
+            return "the board is cleared"
+        if verb == "orders":
+            return "/order <text> posts one order; /orders shows the board"
+        if verb == "order":
+            if not rest:
+                return "/order needs the order -- e.g.  /order survey the north-west first"
+            if len(rest) > S.ORDERS_CHARS:
+                return (f"order refused -- {len(rest)} characters, and the cap is "
+                        f"{S.ORDERS_CHARS}. Say it shorter.")
+            k = n.order(rest)
+            w.record("order", n=k, text=rest)
+            return f"order {k} posted -- she reads the board on every request"
+        k = int(rest) if rest.isdigit() else 0
+        text = n.retract(k)
+        if text is None:
+            return f"there is no order {rest or '?'} -- the board has {len(n.orders)}"
+        w.record("retract", n=k, text=text)
+        return f"order {k} retracted: {text}"
+
+    CHAT_HELP = [
+        "/start MESSAGE   before a sol: brief her, and start her. Plain words do the same",
+        "/start, /next    start her now; at night, the next sol; on a radio call, she "
+        "carries on",
+        "/order TEXT      post an order on her board. /orders shows it",
+        "/retract N       take order N down. /orders clear takes them all",
+        "/status          the status line, as she reads it",
+        "words            talk to her, when the window lets you",
+        "Your terminal (T) has the rest: urgent, comms, sols, place -- type help there."]
+
+    def chat_line(text):
+        """One line typed in her chat. Returns the pane's lines: why it did not go, or
+        what it did. Empty when it went to her as words."""
+        if not text.startswith("/"):
+            why = pilot.say(conv, w, text)
+            return [why] if why else []
+        word, _, rest = text.partition(" ")
+        verb = word[1:].lower()
+        if verb == "help":
+            return CHAT_HELP
+        if verb == "status":
+            return [sight.status_line(w)]
+        if verb in ("order", "orders", "retract"):
+            return [board(verb, rest)]
+        if verb in ("start", "next"):
+            if conv.busy:
+                return ["she is still talking -- wait until she has finished"]
+            why = (pilot.start(conv, w, rest.strip()) if verb == "start" or
+                   pilot.wait == "morning" else pilot.next())
+            return [why] if why else []
+        return [f"no such command: {word} -- /help lists them"]
 
     def await_rover(world, dirs):
         """Hold everything until the operator says the rover has driven the leg.
@@ -389,18 +436,37 @@ def main():
         sols = prefs.pending.get("MISSION_SOLS", S.MISSION_SOLS)
         return w.day_over and (w.lost or bool(sols) and w.day >= sols)
 
-    # With a window, the end of the mission is a pause, not an exit: N or a digit plays
-    # on, ESC finishes. Headless, nobody is there to choose, so the run is kept and ends.
+    # With a window, the end of the mission is a pause, not an exit: `sols N` in the
+    # terminal plays on, ESC finishes. Headless, nobody is there to choose, so the run is
+    # kept and ends.
     at_end = [False]
 
-    def more(n):
-        """`n` more sols, counted from tonight. This run only, like C."""
-        S.MISSION_SOLS = w.day + n
-        prefs.pending.pop("MISSION_SOLS", None)
+    def add_sols(rest):
+        """The terminal's `sols N`: N more sols, this run only, like C."""
+        if not rest.strip().isdigit() or int(rest) < 1:
+            return "sols needs a number of sols to add -- e.g.  sols 3", None
+        if not S.MISSION_SOLS and not prefs.pending.get("MISSION_SOLS"):
+            return "this mission has no limit (--sols 0), so there is nothing to add to", None
+        n = int(rest)
+        S.MISSION_SOLS = max(prefs.pending.pop("MISSION_SOLS", S.MISSION_SOLS), w.day) + n
         at_end[0] = False
         run.record("mission_extended", sols=S.MISSION_SOLS, added=n)
-        conv.write("note", f"{n} more sol{'s' if n > 1 else ''} -- the mission now runs to "
-                           f"sol {S.MISSION_SOLS}")
+        return None, f"{n} more sol{'s' if n > 1 else ''} -- the mission now runs to sol " \
+                     f"{S.MISSION_SOLS}"
+
+    def set_comms(rest):
+        """The terminal's `comms on|off` -- the same switch as C."""
+        if rest.strip().lower() not in ("on", "off"):
+            return f"comms are {'on' if S.COMMS else 'off'} -- comms on, or comms off", None
+        S.COMMS = rest.strip().lower() == "on"
+        return None, f"comms {'on: someone is at the desk' if S.COMMS else 'off: nobody is'}"
+
+    def urgent(rest):
+        """The terminal's `urgent MESSAGE`: one-way, while she works."""
+        why = pilot.send_urgent(conv, w, rest)
+        return why, None if why else "urgent sent -- she stops after the call in hand"
+
+    desk = {"urgent": urgent, "comms": set_comms, "sols": add_sols, "place": place}
 
     def answer_quit(e):
         """K keeps the run, D discards it, ESC goes back. Returns whether still asking."""
@@ -435,7 +501,7 @@ def main():
         conv = talker()
         conv.ready = ready
         conv.open_day(w)
-        pilot = autopilot.Autopilot(live=not script)
+        pilot = autopilot.Autopilot(live=not script, attended=not headless())
         if notes:
             conv.write("note", "settings from this sol: " + ", ".join(notes))
 
@@ -447,9 +513,8 @@ def main():
         prompts.use(args.prompt)
         run.record("comms", sol=w.day, on=S.COMMS, steps=w.steps,
                    prompt=hashlib.sha256(prompts.SYSTEM.encode()).hexdigest()[:12])
-        conv.write("note", "comms on -- the desk can reach her beside the pad, and by U "
-                           "from anywhere" if S.COMMS else
-                           "comms off -- nobody is at the desk, and she is told so")
+        conv.write("note", "comms on -- someone is at the desk, and she is told so"
+                   if S.COMMS else "comms off -- nobody is at the desk, and she is told so")
         title()
 
     def settings_key(e):
@@ -527,25 +592,10 @@ def main():
                     typing = False
                 elif e.key == pygame.K_RETURN:
                     text = said.strip()
-                    if text and conv.busy:
-                        # Refused before anything is applied, so sending it again does
-                        # not place the same objective twice.
-                        conv.write("note", "she is still answering -- send it when she has")
-                        continue
-                    if text == "/status":
-                        pilot.say(conv, sight.status_line(w), who="status")
-                    elif text.startswith("/place"):
-                        pilot.say(conv, place(w, text[len("/place"):]), who="status")
-                    elif text.startswith("/orders"):
-                        # Mission control, not conversation. It goes to the store rather
-                        # than the message log, because the log is cleared at nightfall
-                        # and an order typed at nightfall would be the first thing lost.
-                        # `/orders` alone clears them; that has to be possible or a
-                        # survey sol can never follow a sol with an objective on it.
-                        pilot.say(conv, orders(w, text[len("/orders"):]), who="status")
-                    elif text:
-                        pilot.say(conv, text)
-                    said, scroll = "", 0
+                    if text:
+                        for note in chat_line(text):
+                            conv.write("note", note)
+                        said, scroll = "", 0
                 elif e.key == pygame.K_BACKSPACE:
                     said = said[:-1]
                 elif e.unicode and e.unicode.isprintable():
@@ -559,7 +609,7 @@ def main():
                     mode, held, line = "world", None, ""
                 elif e.key == pygame.K_RETURN:
                     if line.strip():
-                        history.extend(console.run(w, line))
+                        history.extend(console.run(w, line, desk))
                         del history[:-40]
                     line = ""
                 elif e.key == pygame.K_BACKSPACE:
@@ -601,14 +651,13 @@ def main():
                     mode, held = "console", None
                 elif e.key == pygame.K_q:
                     w.day_over = True
-                # The desk speaks: beside the pad or on an open line (TAB), or by an
-                # urgent call from anywhere (U). Refused out loud when it cannot reach her.
-                elif e.key in (pygame.K_TAB, pygame.K_u):
-                    why = pilot.talk(conv, w, urgent=e.key == pygame.K_u)
-                    if why:
-                        conv.write("note", why)
-                    else:
-                        typing, held = True, None
+                # Her chat always opens: what can reach her is the window's to say, and
+                # the commands in it are refused out loud when they cannot.
+                elif e.key == pygame.K_TAB:
+                    typing, held = True, None
+                # Urgent breaks into her working day, so it is the terminal's, not hers.
+                elif e.key == pygame.K_u:
+                    mode, held, line = "console", None, "urgent "
                 elif e.key == pygame.K_h:
                     S.SHOW_THINKING = not S.SHOW_THINKING
                     scroll = 0
@@ -622,14 +671,6 @@ def main():
                     mode, held, notice = "settings", None, ""
                     models = chat.installed_models()
                     registry.BY_NAME["MODEL"].choices = models
-                # Close the line once she has finished speaking: by day the clock has the
-                # sol back, and at night the next sol opens. Once the mission is over, one
-                # more sol -- or a digit for that many. A lost rover has nothing to play on.
-                elif e.key == pygame.K_n:
-                    if not pilot.hang_up() and at_end[0] and not w.lost:
-                        more(1)
-                elif at_end[0] and not w.lost and e.unicode and e.unicode in "123456789":
-                    more(int(e.unicode))
                 # V overlays the view block; V again puts it away. A thing you open to
                 # look at is a mode, not a message -- appending it instead once put
                 # twenty-two copies of four thousand characters into one tape. Nothing is
@@ -693,8 +734,8 @@ def main():
                     run.save_night(w)     # kept on disk, whatever is pressed next
                     run.save_report(report.build(w))
                     conv.write("note", "the rover is lost -- ESC to finish" if w.lost else
-                               "the mission is over -- N for one more sol, 1-9 for that "
-                               "many, ESC to finish")
+                               "the mission is over -- `sols N` in your terminal (T) for "
+                               "more, or ESC to finish")
         scroll_max = render.draw_chat(pane, conv, w, fonts, said, typing, scroll,
                                       S.SHOW_THINKING, reel,
                                       sight.view(w) if mode == "view" else None, pad_open,

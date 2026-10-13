@@ -527,7 +527,8 @@ class World:
                 "survey": {"owner": sorted([x, y, f] for (x, y), f in sv.owner.items()),
                            "size": sorted([f, n] for f, n in sv.size.items()),
                            "merges": [list(m) for m in sv.merges], "next": sv._next},
-                "memory": self.notes.memory, "orders": self.notes.orders,
+                "memory": [[k, v] for k, v in self.notes.memory.items()],
+                "orders": list(self.notes.orders),
                 "pos": list(self.pos), "stranded": not self.docked,
                 "battery": self.battery, "finished": self.finished,
                 "history": self.history + [self._sol_record()]}
@@ -546,7 +547,7 @@ class World:
         sv.size = {f: n for f, n in c["survey"]["size"]}
         sv.merges = [tuple(m) for m in c["survey"]["merges"]]
         sv._next = c["survey"]["next"]
-        self.notes.memory, self.notes.orders = c["memory"], c["orders"]
+        self.notes.load(c["memory"], c["orders"])
         # Older nights have neither: those rovers all woke at the pad.
         self.pos = tuple(c.get("pos") or C.SPAWN)
         self.stranded = bool(c.get("stranded", False))

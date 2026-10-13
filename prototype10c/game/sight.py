@@ -84,7 +84,7 @@ HALLMARKS = ("WHAT YOU CAN SEE RIGHT NOW",
              # Her own writing is rendered by us and so can be forged by her. A list
              # she wrote into a reply would read back as struck items she never struck.
              "YOUR LIST FOR TODAY",
-             "WHAT YOU WROTE DOWN TO KEEP",
+             "YOUR MEMORY",
              # The one she cannot write at all, which makes forging it the worst of the
              # set: an order she issued to herself would read as mission control's.
              "YOUR ORDERS FROM MISSION CONTROL")
@@ -332,19 +332,24 @@ def todo_list(w):
 
 
 def kept(w):
-    """The doc that survives the night, quoted back whole.
+    """Her memory, every entry, quoted back whole.
 
     Shown every request rather than only in the morning: `remember` replaces what is
     there, so a rewrite whose effect she cannot see is a call she has no way to check --
     which is the vanishing call this prototype has been bitten by three times.
     """
-    if not w.notes.memory:
-        return ['WHAT YOU WROTE DOWN TO KEEP -- nothing yet. remember("...") is the only '
-                'thing that survives tonight; this conversation and the list above do '
-                'not. The map and the finished work carry themselves.']
-    return ["WHAT YOU WROTE DOWN TO KEEP -- yours, and yours to rewrite the moment it "
-            "stops being true.",
-            f"  {w.notes.memory}"]
+    mem = w.notes.memory
+    if not mem:
+        return ['YOUR MEMORY -- empty. remember(name, text) is the only thing that '
+                'survives tonight; this conversation and the list above do not. The map, '
+                'the finished work and the orders carry themselves.']
+    out = [f"YOUR MEMORY -- {len(mem)} of {S.MEMORY_ENTRIES} entries, yours to change or "
+           f"forget the moment one stops being true."]
+    for name, text in mem.items():
+        first, *rest = text.splitlines() or [""]
+        out.append(f"  {name}: {first}")
+        out += [f"    {line}" for line in rest]
+    return out
 
 
 def orders(w):
@@ -359,9 +364,9 @@ def orders(w):
     """
     if not w.notes.orders:
         return []
-    return ["YOUR ORDERS FROM MISSION CONTROL -- the operator wrote these and only the "
-            "operator can change them. They stand until she replaces them.",
-            f"  {w.notes.orders}"]
+    return ["YOUR ORDERS FROM MISSION CONTROL -- the operator's board. Only the operator "
+            "can post or take one down, and each stands until they do.",
+            *(f"  {i}. {text}" for i, text in enumerate(w.notes.orders, 1))]
 
 
 def neighbours(w):

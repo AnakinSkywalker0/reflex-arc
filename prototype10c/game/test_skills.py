@@ -460,7 +460,8 @@ def test_the_schema_matches_what_is_wired_up():
     names = {t["function"]["name"] for t in skills.TOOLS}
     ok = check("exactly eleven skills",
                names == {"goto", "distance", "execute", "count", "count_cells",
-                         "todo", "strike", "remember", "radio", "sos", "end"}, str(names))
+                         "todo", "strike", "remember", "forget", "radio", "end"},
+               str(names))
     blob = str(skills.TOOLS)
     # Optional since 2026-09-01, and the schema has to say so or the model infers the
     # requirement from the shape and goes back to failing calls it never had to fail.
