@@ -174,10 +174,12 @@ SETTINGS = [
             "route and moves nothing", choices=("teleport", "plan")),
     Setting("TODO_MAX", "int", "sol", "items on the model's list in a sol", 1, 40),
     Setting("TODO_CHARS", "int", "sol", "characters in one list item", 40, 1000, 20),
-    Setting("MEMORY_CHARS", "int", "sol", "characters in the note that crosses the "
-            "night", 100, 3000, 50),
-    Setting("ORDERS_CHARS", "int", "sol", "characters in the operator's standing orders",
-            100, 3000, 50),
+    Setting("MEMORY_ENTRIES", "int", "sol", "entries her memory holds; at the cap she "
+            "forgets one before she adds", 1, 30),
+    Setting("MEMORY_CHARS", "int", "sol", "characters in one entry of her memory",
+            50, 1000, 25),
+    Setting("ORDERS_CHARS", "int", "sol", "characters in one order on the board",
+            50, 1000, 25),
     # --- after a restart ---------------------------------------------------
     Setting("APP_ARENA", "choice", "relaunch", "the arena: 30x30 or 50x50",
             choices=tuple(C.ARENAS), mod=C),

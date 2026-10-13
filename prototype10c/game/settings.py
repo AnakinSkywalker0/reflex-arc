@@ -210,16 +210,16 @@ SETTLE_SECONDS = 2.0
 TODO_MAX = 12
 TODO_CHARS = 200        # one line. Longer is a retelling, and the tape already has one.
 #
-# `remember` replaces the whole doc, so an over-long one is refused rather than cut:
-# truncating a rewrite silently loses the end, which is usually the part she has just
-# changed her mind about.
-MEMORY_CHARS = 600
+# Her memory: named entries, each written or replaced whole by `remember` and dropped by
+# `forget`. A hard cap, like the handoff's, so at the cap she forgets before she adds. An
+# over-long entry is refused rather than cut: truncating a rewrite silently loses the end,
+# which is usually the part she has just changed her mind about. Bullets fit inside one.
+MEMORY_ENTRIES = 10
+MEMORY_CHARS = 300      # one entry
 #
-# The operator's store, and the third of the three. Refused rather than cut for the same
-# reason as `remember`. Larger than a memory because an order may place work and say why
-# in one breath, and smaller than a page because it is read on every single call.
-ORDERS_CHARS = 800
-# What she says when she calls mission control, `radio` or `sos`. A call, not a report.
+# One order on the operator's board, refused rather than cut for the same reason.
+ORDERS_CHARS = 400
+# What she says when she radios mission control. A call, not a report.
 RADIO_CHARS = 400
 
 # --- the weather -----------------------------------------------------------

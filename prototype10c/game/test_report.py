@@ -29,7 +29,7 @@ def played():
     w.next_day()
     skills.call(w, "goto", {"x": 20, "y": 8})
     # The note she might write, wrong on purpose: the report must not take its word.
-    w.notes.memory = "No objectives were found during the expedition."
+    w.notes.memory = {"findings": "No objectives were found during the expedition."}
     return w
 
 
@@ -56,12 +56,12 @@ def test_the_facts_come_from_the_world():
 def test_her_note_is_hers():
     print("the note")
     text = report.build(played())
-    note = text.split("## The planner's note")[1]
-    ok = check("her note is under its own heading, marked unchecked",
+    note = text.split("## The planner's memory")[1]
+    ok = check("her memory is under its own heading, marked unchecked",
                "not checked against the record" in note
                and "No objectives were found" in note)
     ok &= check("and only there: the record above says otherwise",
-                "No objectives were found" not in text.split("## The planner's note")[0])
+                "No objectives were found" not in text.split("## The planner's memory")[0])
     return ok
 
 

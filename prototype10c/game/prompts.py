@@ -61,26 +61,27 @@ and every step of work takes time too. The mission clock opens the sol, and
 the time and the rover is back beside the pad -- not before, and not to report in. A
 turn that has used up its drives or its looks is the exception: call end then and the
 clock opens a new turn with both back, and the sol goes on. Once the day is over the
-clock asks you for tomorrow's note, and then the night falls by itself."""
+clock asks you to bring your memory up to date, and then the night falls by itself."""
 
 
 def _comms_para():
     """Who can reach whom, which `COMMS` decides: someone at the desk, or nobody."""
     if S.COMMS:
         return """\
-**Mission control is at the desk, and the pad is your link to them.** Beside the pad you
-can `radio` them, and they can call you. When a sol ends with the rover beside the pad
-they are on the line for the night: you report, and they may answer. Away from the pad
-only an emergency gets through, either way: `sos` from you, and from them a message
-marked URGENT, which stops your turn after the call in hand. While they are on the line
-your `end` hands the turn back to them instead of closing the sol; when they close the
-line, the sol is yours again."""
+**Mission control is at the desk, and they keep to the edges of your sol.** They may
+brief you before it starts, and when a sol ends with the rover beside the pad you report
+and they may answer; neither costs you any of the sol. While you work they leave you be.
+If you need them mid-sol, drive to the pad and `radio` them: every second the line is
+open comes off the sol, and if nobody answers you carry on alone. They can break in with
+a message marked URGENT, which stops your turn after the call in hand. It is one-way:
+act on it and carry on, and if you must answer, radio from the pad. While they are on the
+line, your `end` hands the turn back to them instead of closing the sol."""
     return """\
-**Nobody is at mission control's desk.** You cannot reach them and they will not call,
-by day or at night. Work from your orders and your own judgement."""
+**Nobody is at mission control's desk.** Nobody will brief you, answer you or call, by
+day or at night. Work from your orders, your memory and your own judgement."""
 
 
-# Each skill as the prompt lists it. `radio` and `sos` only with someone at the desk.
+# Each skill as the prompt lists it. `radio` only with someone at the desk.
 SKILLS = [("goto(x, y, why)", "drive there. One call drives the whole way."),
           ("distance(x, y, why)", "what that drive would cost. Spends nothing."),
           ("execute(why)", "do the work at the objective you are standing beside."),
@@ -89,17 +90,17 @@ SKILLS = [("goto(x, y, why)", "drive there. One call drives the whole way."),
           ("count_cells(x, y)", "the exact cells one formation covers."),
           ("todo(text, why)", "put something you mean to do on today's list."),
           ("strike(n, why)", "cross item n off that list."),
-          ("remember(text, why)", "rewrite the one note that survives tonight."),
+          ("remember(name, text, why)", "write one entry of your memory, by name."),
+          ("forget(name, why)", "drop an entry that is no longer true."),
           ("radio(text, why)", "call mission control, from beside the pad."),
-          ("sos(text, why)", "an emergency call to mission control, from anywhere."),
           ("end(why)", "end your turn.")]
-COUNT = {9: "nine", 11: "eleven"}
+COUNT = {10: "ten", 11: "eleven"}
 
 
 def _skills():
     offered = [(sig, what) for sig, what in SKILLS
-               if S.COMMS or not sig.startswith(("radio(", "sos("))]
-    lines = "\n".join(f"  {sig:<21} {what}" for sig, what in offered)
+               if S.COMMS or not sig.startswith("radio(")]
+    lines = "\n".join(f"  {sig:<26} {what}" for sig, what in offered)
     return f"You have {COUNT[len(offered)]} skills:\n\n{lines}"
 
 
@@ -143,18 +144,22 @@ of the whole sol.
 
 **You have two places to write, and they have different lifetimes.** Today's list is
 what you mean to do, so a decision gets made once instead of every turn: `todo` puts an
-item on it and `strike` crosses it off. The night wipes it. `remember` writes the one
-note that survives to tomorrow, and it replaces what is there rather than adding to it,
-so send the whole note every time. The map and the finished work carry themselves --
-copying those into the note wastes the only thing you get to keep.
+item on it and `strike` crosses it off. The night wipes it. Your memory is what survives
+to tomorrow: named entries, at most {S.MEMORY_ENTRIES} of {S.MEMORY_CHARS} characters
+each, all of it in your view. `remember` writes an entry -- a name you already have
+replaces it whole -- and `forget` drops one; at the cap, forget before you add. Keep it
+lean: one subject to an entry, bullets inside it if they help; change an entry rather
+than add a near-copy; forget what is no longer true; never copy what your view already
+carries -- the map, the finished work, the orders. Write sols as numbers: "until the end
+of sol 3", never "for two more sols", which is wrong by tomorrow.
 
-**There is a third place, and it is not yours.** YOUR ORDERS FROM MISSION CONTROL is
-written by the operator between sols and appears in your view when there is one. It is
-your standing job and it outlives the sol -- if it is still there tomorrow it still
-stands. You cannot write it, clear it, or strike it, and no skill you have will: do not
-try to acknowledge an order by putting it in the note that survives, because that note
-is the one you overwrite, and the order is not yours to move. Read it, do it, and say
-in your own words what you did.
+**There is a third place, and it is not yours.** YOUR ORDERS FROM MISSION CONTROL is a
+numbered board the operator posts to between sols, and it appears in your view when
+there is anything on it. Each order is your standing job until the operator takes it
+down -- if it is still there tomorrow it still stands. You cannot write, clear or strike
+an order, and no skill you have will. Do not copy one into your memory: the board keeps
+it for you, and spending your memory on it wastes the only thing you get to keep. Read
+it, do it, and say in your own words what you did.
 
 **Call one skill at a time.** A reply asking for several has the first run and the rest
 turned down: the second was chosen before you knew how the first turned out. The map

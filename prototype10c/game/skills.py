@@ -236,25 +236,37 @@ TOOLS = [
     {"type": "function", "function": {
         "name": "remember",
         "description": (
-            "Write the one thing that survives tonight. Everything else -- this "
-            "conversation, your reasoning, today's list -- is gone by morning; the map "
-            "and the finished objectives carry themselves, so do not copy those. What "
-            "is worth keeping is what you tried, what you judged not worth the trip, "
-            "and what you meant to do next. It REPLACES what is there rather than "
-            "adding to it, so send the whole thing every time, including the parts you "
-            "still agree with. Costs no steps."),
+            "Write one entry of your memory, by name -- the only thing that survives "
+            "tonight. Everything else -- this conversation, your reasoning, today's list -- "
+            "is gone by morning, and the map, the finished objectives and mission "
+            "control's orders carry themselves, so do not copy those. An entry holds one "
+            "subject: what you tried, what you judged not worth the trip, a constraint you "
+            "are keeping, what to do next. A name you already have REPLACES that entry, so "
+            "send all of it; a new name adds one, up to the cap. Write sols as numbers -- "
+            "'until the end of sol 3', never 'for two more sols'. Costs no steps."),
         "parameters": {"type": "object", "properties": {
+            "name": {"type": "string", "description":
+                     "a short name for the subject, e.g. 'constraints' or 'the C'"},
             "text": {"type": "string", "description":
-                     f"the whole note, at most {S.MEMORY_CHARS} characters"},
+                     f"the whole entry, at most {S.MEMORY_CHARS} characters; bullets are fine"},
             "why": {"type": "string", "description":
                     "optional: one line on what changed your mind"},
-        }, "required": ["text"]}}},
+        }, "required": ["name", "text"]}}},
+    {"type": "function", "function": {
+        "name": "forget",
+        "description": (
+            "Drop one entry of your memory, by name, once it is no longer true or no "
+            "longer needed. At the cap this is how you make room. Costs no steps."),
+        "parameters": {"type": "object", "properties": {
+            "name": {"type": "string", "description": "the entry's name"},
+            "why": {"type": "string", "description": "optional: one line on why it goes"},
+        }, "required": ["name"]}}},
     {"type": "function", "function": {
         "name": "radio",
         "description": (
             "Call mission control, from beside the pad: a question only they can "
-            "answer, or news that changes the plan. It works only beside the pad; away "
-            "from it only sos gets through. It ends your turn, and their answer is your "
+            "answer, or news that changes the plan. It works only beside the pad. It "
+            "ends your turn, and their answer is your "
             "next message -- or, if nobody answers, the sol is yours again. Costs no "
             "steps."),
         "parameters": {"type": "object", "properties": {
@@ -262,19 +274,6 @@ TOOLS = [
                      f"what you say to them, at most {S.RADIO_CHARS} characters"},
             "why": {"type": "string", "description":
                     "optional: one line on why it cannot wait for the night"},
-        }, "required": ["text"]}}},
-    {"type": "function", "function": {
-        "name": "sos",
-        "description": (
-            "An emergency call to mission control, from anywhere: only for something "
-            "that puts the rover or the mission in danger. It ends your turn, and their "
-            "answer is your next message -- or, if nobody answers, the sol is yours "
-            "again. Costs no steps."),
-        "parameters": {"type": "object", "properties": {
-            "text": {"type": "string", "description":
-                     f"what is wrong, at most {S.RADIO_CHARS} characters"},
-            "why": {"type": "string", "description":
-                    "optional: one line on why it is an emergency"},
         }, "required": ["text"]}}},
     {"type": "function", "function": {
         "name": "end",
@@ -291,13 +290,9 @@ TOOLS = [
 
 NAMES = [t["function"]["name"] for t in TOOLS]
 
-# What a call to mission control comes back with when it got through.
-CALLED = ("RADIOED", "SOS SENT")
-
-
 def got_through(c):
-    """Whether `c` was a call to mission control that reached the desk."""
-    return c.name in ("radio", "sos") and (c.result or "").startswith(CALLED)
+    """Whether `c` was a radio call that reached the desk."""
+    return c.name == "radio" and (c.result or "").startswith("RADIOED")
 
 
 def tools_for(names=None):
@@ -583,16 +578,18 @@ def _count_cells(world, x, y):
 def _execute(world):
     """Do the work at the objective the rover is beside, and say what it cost.
 
-    Every refusal says where the nearest unfinished objective is and that nothing was
-    spent. A bare code leaves a 4B model nothing to act on, which is the lesson
+    Every refusal says where the unfinished objectives she has found are, and that
+    nothing was spent. A bare code leaves a 4B model nothing to act on, which is the lesson
     `DONE(beside=...)` cost four days: a field is not a sentence.
     """
-    left = [o for o in world.objectives if not o.done]
+    # Only what she has seen: naming one still under the fog hands her its location.
+    left = [o for o in world.objectives if not o.done and world.here.visible(*o.cell)]
     o = world.adjacent_objective()
     if o is None:
         if not left:
-            return ("NOTHING_TO_DO -- every objective on this arena is finished. "
-                    "Nothing was spent.")
+            return ("NOT_BESIDE_ONE -- the rover is not next to an objective, so nothing "
+                    "happened and nothing was spent. No objective you have found is left "
+                    "to do; any others are still under the fog.")
         near = ", ".join(f"{p.priority} priority at ({p.cell[0]},{p.cell[1]}), "
                          f"{p.cost} steps of work" for p in left)
         return (f"NOT_BESIDE_ONE -- the rover is not next to an objective, so nothing "
@@ -615,7 +612,8 @@ def _execute(world):
                 f"needs {o.cost} steps and {why} after {spent}. The objective is not "
                 f"done and those steps are gone. Start it with more in hand.")
     rest = [p for p in left if p is not o]
-    tail = (" Nothing else is left to do." if not rest else
+    tail = (" No other objective you have found is left to do; any others are still "
+            "under the fog." if not rest else
             " Still to do: " + ", ".join(
                 f"{p.priority} priority at ({p.cell[0]},{p.cell[1]}), {p.cost} steps"
                 for p in rest) + ".")
@@ -668,19 +666,31 @@ def _strike(world, i):
                "Nothing is left open on your list."))
 
 
-def _remember(world, text):
-    """The doc, replaced whole. The one thing that outlives the sol.
-
-    The old length is quoted back when there was one, so a rewrite that dropped half of
-    what she had said is visible in the answer rather than only on the tape.
-    """
+def _remember(world, name, text):
+    """One entry, written or replaced whole. The old length is quoted back when there was
+    one, so a rewrite that dropped half of what she had said is visible in the answer
+    rather than only on the tape."""
     n = world.notes
-    had = len(n.memory)
-    n.memory = text
-    world.record("remember", chars=len(text), text=text)
-    return (f"REMEMBERED({len(text)} characters) -- "
-            + (f"this replaced the {had} characters that were there. " if had else "")
-            + "It is the only thing you will still have tomorrow morning.")
+    if n.entry(name) is None and len(n.memory) >= S.MEMORY_ENTRIES:
+        return (f"MEMORY_FULL -- you already hold {S.MEMORY_ENTRIES} entries, so nothing was "
+                f"written. Forget one that is no longer true, or fold this into an entry "
+                f"that covers it: {', '.join(n.memory)}.")
+    had = n.remember(name, text)
+    world.record("remember", name=name, chars=len(text), text=text)
+    return (f"REMEMBERED({name}, {len(text)} characters) -- "
+            + (f"this replaced the {had} characters that were there. " if had is not None
+               else f"a new entry: {len(n.memory)} of {S.MEMORY_ENTRIES}. ")
+            + "Your memory is the only thing you will still have tomorrow morning.")
+
+
+def _forget(world, name):
+    n = world.notes
+    if not n.forget(name):
+        held = ", ".join(n.memory) or "none"
+        return (f"NOT_REMEMBERED({name}) -- there is no entry by that name, so nothing "
+                f"changed. Your entries: {held}.")
+    world.record("forget", name=name)
+    return f"FORGOT({name}) -- {len(n.memory)} of {S.MEMORY_ENTRIES} entries left."
 
 
 def call(world, name, args, history=()):
@@ -708,10 +718,12 @@ def call(world, name, args, history=()):
             avoid = _avoid(c.args.get("avoid"))
         if name == "strike":
             n = _int("n", c.args.get("n"))
-        if name in ("todo", "remember", "radio", "sos"):
+        if name in ("todo", "remember", "radio"):
             text = _text("text", c.args.get("text"),
                          {"todo": S.TODO_CHARS, "remember": S.MEMORY_CHARS}.get(
                              name, S.RADIO_CHARS))
+        if name in ("remember", "forget"):
+            entry = _text("name", c.args.get("name"), 40)
     except BadArgs as e:
         c.result = f"BAD_ARGS({e}). Nothing happened and nothing was spent."
         return c
@@ -725,18 +737,20 @@ def call(world, name, args, history=()):
         c.result = "END -- your turn is over."
         return c
 
-    if name in ("radio", "sos"):
+    if name == "radio":
         # Whether anyone answers is the clock's business (`autopilot`), and whether
         # anyone is at the desk decides what she is offered, not what this says: the
         # result is the same whoever replays it.
-        if name == "radio" and not world.docked:
-            c.result = ("NO_LINK -- the rover is away from the pad, and from out here only "
-                        "sos gets through. Nothing was sent; carry on.")
+        if not world.docked:
+            c.result = ("NO_LINK -- the rover is away from the pad, and the pad is the "
+                        "only link. Nothing was sent; carry on.")
             return c
         world.record(name, text=text, at=list(world.pos))
-        c.result = (f"{'RADIOED' if name == 'radio' else 'SOS SENT'} -- mission control "
-                    f"has it. Your turn is over: their answer, if they give one, is your "
-                    f"next message.")
+        c.result = ("RADIOED -- mission control has it. The sol is over, so the line costs "
+                    "nothing; finish what the night needs, then call end." if world.day_over
+                    else "RADIOED -- mission control has it. Your turn is over, and every "
+                    "second the line is open comes off the sol: their answer, if they give "
+                    "one, is your next message.")
         return c
 
     if name == "count":
@@ -771,7 +785,9 @@ def call(world, name, args, history=()):
     elif name == "strike":
         c.result = _strike(world, n)
     elif name == "remember":
-        c.result = _remember(world, text)
+        c.result = _remember(world, entry, text)
+    elif name == "forget":
+        c.result = _forget(world, entry)
     else:
         # A floor, not a quote, and said in words -- a field is not a sentence. The
         # companion `reveals~` number is gone: driving reveals nothing here, so it was

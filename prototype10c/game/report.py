@@ -88,8 +88,13 @@ def build(world):
                      f"{'beside the pad' if h['docked'] else 'stranded'} | "
                      f"{h['battery']} of {S.BATTERY} |")
 
-    note = world.notes.memory.strip()
-    lines += ["", "## The planner's note", "",
+    lines += ["", "## The planner's memory", "",
               "Written by the planner and not checked against the record above.", ""]
-    lines += [f"> {line}" for line in note.splitlines()] if note else ["> (none)"]
+    for name, text in world.notes.memory.items():
+        lines += [f"**{name}**", ""] + [f"> {line}" for line in text.splitlines()] + [""]
+    if not world.notes.memory:
+        lines.append("> (none)")
+    if world.notes.orders:
+        lines += ["", "## Standing orders at the end", ""]
+        lines += [f"{i}. {t}" for i, t in enumerate(world.notes.orders, 1)]
     return "\n".join(lines) + "\n"

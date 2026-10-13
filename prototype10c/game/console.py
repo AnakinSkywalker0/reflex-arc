@@ -1,8 +1,11 @@
-"""The human's way into the planner: press T, type a goto.
+"""The operator's terminal: press T. Two kinds of command live here.
 
-It prints back the exact string gemma will get, so playtesting the planner and
-reading a model transcript are the same activity. No pygame in here, so the tests
-can drive it too.
+Playing -- goto, distance, execute -- prints back the exact string gemma would get, so
+playtesting the planner and reading a model transcript are the same activity. Running the
+mission -- urgent, comms, sols, place -- is the desk's, and `main.py` hands those in as
+`desk`, since they reach the clock and the run. Her chat (TAB) is for talking to her; this
+is for everything else. A leading `/` is accepted out of habit. No pygame in here, so the
+tests can drive it too.
 """
 
 import re
@@ -11,6 +14,10 @@ import nav
 import skills
 
 HELP = [
+    "urgent MESSAGE               stop her after the call in hand; one-way, while she works",
+    "comms on|off                 someone at the desk, or nobody (C does the same)",
+    "sols N                       N more sols in the mission",
+    "place X Y PRIORITY COST      put an objective under the fog: high|medium|low, steps",
     "goto X Y                     drive there over the map you have",
     "goto X Y avoid=auto          ...dodging every X you marked. Visited only",
     "goto X Y avoid=(3,4),(5,6)   ...dodging these cells, this trip only",
@@ -37,13 +44,21 @@ def _parse(text):
     return (words[0].lower() if words else ""), _cells(head), avoid
 
 
-def run(world, text):
-    """One typed line in, the lines to print out, as (text, tone) pairs."""
+def run(world, text, desk=None):
+    """One typed line in, the lines to print out, as (text, tone) pairs.
+
+    `desk` maps the mission's verbs to functions taking the rest of the line and returning
+    a refusal, or None when it went through, then a line to print."""
     echo = [(f"> {text.strip()}", "plain")]
+    text = text.strip().lstrip("/")
     verb, cells, avoid = _parse(text)
 
     if verb in ("", "help", "?"):
         return echo + [(line, "plain") for line in HELP]
+    if desk and verb in desk:
+        rest = text.split(None, 1)[1] if len(text.split(None, 1)) > 1 else ""
+        bad, said = desk[verb](rest)
+        return echo + [(bad, "bad")] if bad else echo + [(said, "good")]
     if verb not in ("goto", "distance", "dist", "execute"):
         return echo + [(f"no such command: {verb}   (try help)", "bad")]
 

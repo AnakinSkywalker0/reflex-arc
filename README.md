@@ -29,7 +29,7 @@ driven on real hardware. Designed in [`ROVER.md`](ROVER.md).
 
 ## Current plan
 
-*As of 11 October 2026.* Both SIH entries are in and the results will take a while. Until they
+*As of 14 October 2026.* Both SIH entries are in and the results will take a while. Until they
 arrive, the work is making the project better, not the pitch.
 
 **The rover has changed.** It now carries a 360° camera, which mimics the simulation's sight, and
@@ -57,13 +57,24 @@ corrected. The overhead camera in [`ARCHITECTURE.md`](ARCHITECTURE.md) is supers
    [`prototype10c/DESIGN.md`](prototype10c/DESIGN.md) covers:
    - a mission clock that runs every sol, with a battery only the pad recharges;
    - home before dark, or stranded;
-   - comms: mission control talks to her only when someone is at the desk, from beside the pad
-     or by urgent call when she is away from it;
+   - mission control at the edges of the sol: a briefing before it, talk after it, her radio
+     from the pad mid-sol at a cost in time, and a one-way urgent message;
+   - her memory as a few named entries she keeps lean, and a numbered board of orders;
    - a local fallback when the cloud model drops;
    - a report written from the record.
 
-   The team runs it next, as they did 10b.
-4. **Prototype 11 — Ishan.** A Martian simulation game, scoped in its own conversation. On the
+   The 13 Oct run's fixes are in it: the night line, the objective leak, the dusk memory.
+4. **Prototype 10d, the sol in four phases — built 14 October.**
+   [`prototype10d/DESIGN.md`](prototype10d/DESIGN.md) covers:
+   - dawn, day, dusk and night, each obvious on screen: talk at dawn and night, the day hers
+     on a wall clock nothing pauses, her report at dusk;
+   - one urgent message by day, and her radio from anywhere at a cost in battery;
+   - `end` as the day, with the caps ending turns by themselves;
+   - interests she has to find, and objectives the desk places on mapped ground, by hand or
+     three at a time.
+
+   10d is built for the demonstration, not modelled on a real mission. The team runs it next.
+5. **Prototype 11 — Ishan.** A Martian simulation game, scoped in its own conversation. On the
    table:
    - a bigger map, with regions besides Jezero flats that each have their own hazards;
    - storms that move;
@@ -74,9 +85,9 @@ corrected. The overhead camera in [`ARCHITECTURE.md`](ARCHITECTURE.md) is supers
    - **chunks:** 50×50 cells, each a small block, with hazards and objectives taking whole chunks;
    - **a scripted baseline** to compare decisions against;
    - **how the view scales.** The grid view costs about 1,200 tokens at 50×50.
-5. **Prototype 12 — hardware integration with the real LiDAR.** Owned by the team, with Koushik.
-   Whether it forks from 10b, 10c or 11 is decided after 11.
-6. **Documentation overhaul — Ishan, after 11 is scoped.** Two levels: plain docs for people,
+6. **Prototype 12 — hardware integration with the real LiDAR.** Owned by the team, with Koushik.
+   Whether it forks from 10b, 10d or 11 is decided after 11.
+7. **Documentation overhaul — Ishan, after 11 is scoped.** Two levels: plain docs for people,
    technical or not, and deep docs for developers and AI.
 
 **Deferred:**
@@ -104,7 +115,8 @@ corrected. The overhead camera in [`ARCHITECTURE.md`](ARCHITECTURE.md) is supers
 | [`rover_ideas.md`](rover_ideas.md) | the rover in full — the reasoning, and what was already cut |
 | [`ARCHITECTURE.md`](ARCHITECTURE.md) | how the three layers fit together |
 | [`work_division.md`](work_division.md) | who owns what |
-| [`prototype10c/`](prototype10c/) | the current build — the rover working sols by itself, and comms with the desk |
+| [`prototype10d/`](prototype10d/) | the current build — the sol in four phases, interests and objectives |
+| [`prototype10c/`](prototype10c/) | the rover working sols by itself, with comms modelled on a real mission |
 | [`prototype10b/`](prototype10b/) | the base the team is testing — the simulation, the planner and the seam to the rover |
 | [`prototype10a/`](prototype10a/) | prototype 10 frozen as the Angaraka recording ran it |
 | [`docs/findings.md`](docs/findings.md) | what prototypes 1–9 settled — read before changing how the model is spoken to |

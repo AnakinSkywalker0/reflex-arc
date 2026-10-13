@@ -89,14 +89,24 @@ class Script:
                 self.turns.append({"day": r.get("day"), "name": r.get("name"),
                                    "args": r.get("args") or {}, "clock": r.get("clock"),
                                    "over": r.get("over"), "turn": r.get("turn"),
+                                   "t": r.get("t"), "ops": [],
                                    "said": " ".join(said).strip(), "expect": expect})
                 said = []
 
-        # What the operator typed at nightfall, filed under the sol she typed it on.
-        # Applied when that sol closes, which is when she typed it.
+        # What the operator did to the world and the board. Each is applied before the
+        # first call that came after it on the same sol -- a placement typed in the
+        # morning window is there for the whole sol -- and anything typed after a sol's
+        # last call is applied when that sol closes, before the night reseeds the storm.
         self.ops = {}
         for r in game_rows:
-            if r.get("kind") in ("orders", "placed"):
+            if r.get("kind") not in OPS:
+                continue
+            after = next((t for t in self.turns if t["day"] == r.get("day")
+                          and t["t"] is not None and r.get("t") is not None
+                          and t["t"] > r["t"]), None)
+            if after is not None:
+                after["ops"].append(r)
+            else:
                 self.ops.setdefault(r.get("day"), []).append(r)
 
         # The settings each sol was played under. Replay puts these in force rather
@@ -136,25 +146,45 @@ class Script:
         return registry.apply(self.settings.get(sol, {}), only=lambda s: s.replayed)
 
     def operator(self, world, day):
-        """Re-do what the operator did at the close of `day`. Returns what she typed.
+        """Re-do what the operator did after the last call of `day`. Returns what."""
+        return apply(world, self.ops.get(day, ()))
 
-        Orders and placements are re-applied against the live world rather than having
-        their effects copied out of the tape: a placement that the guard would refuse
-        today must refuse today too, or replay would smuggle in a state the game does
-        not permit.
-        """
-        done = []
-        for r in self.ops.get(day, ()):
-            if r["kind"] == "orders":
-                world.notes.order(r.get("text", ""))
-                done.append(f"orders: {r.get('text') or '(cleared)'}")
-            else:
-                cell = tuple(r["at"]) if isinstance(r["at"], list) else r["at"]
-                o, why = world.place_objective(cell, r.get("priority", "medium"),
-                                               r.get("cost", 30))
-                done.append(f"placed {o.glyph} at {cell}" if o
-                            else f"placement at {cell} REFUSED on replay: {why}")
-        return done
+
+# What the operator does to the world or the board, which a replay has to do again.
+OPS = ("orders", "order", "retract", "orders_cleared", "placed")
+
+
+def apply(world, rows):
+    """Re-do operator rows against the live world. Returns a line for each.
+
+    Re-applied rather than copied out of the tape: a placement that the guard would refuse
+    today must refuse today too, or replay would smuggle in a state the game does not
+    permit. `orders` is the old single-string board, kept so older tapes still replay.
+    """
+    done, n = [], world.notes
+    for r in rows:
+        kind = r["kind"]
+        if kind == "orders":
+            n.clear_orders()
+            if r.get("text"):
+                n.order(r["text"])
+            done.append(f"orders: {r.get('text') or '(cleared)'}")
+        elif kind == "order":
+            n.order(r.get("text", ""))
+            done.append(f"order posted: {r.get('text')}")
+        elif kind == "retract":
+            n.retract(r.get("n", 0))
+            done.append(f"order {r.get('n')} retracted")
+        elif kind == "orders_cleared":
+            n.clear_orders()
+            done.append("orders cleared")
+        else:
+            cell = tuple(r["at"]) if isinstance(r["at"], list) else r["at"]
+            o, why = world.place_objective(cell, r.get("priority", "medium"),
+                                           r.get("cost", 30))
+            done.append(f"placed {o.glyph} at {cell}" if o
+                        else f"placement at {cell} REFUSED on replay: {why}")
+    return done
 
 
 class Replay(chat.Conversation):
@@ -220,6 +250,7 @@ class Replay(chat.Conversation):
         if turn["said"]:
             self.q.put(("say", turn["said"]))
         self._expect = turn["expect"]
+        self._ops = turn["ops"]
         self._clock = turn["clock"]
         self._over = turn["over"]
         self._tape_turn = turn["turn"]
@@ -239,6 +270,9 @@ class Replay(chat.Conversation):
         a divergence anywhere in the world without a field-by-field list that would go
         stale the moment a result gains a clause.
         """
+        for done in apply(self.world, getattr(self, "_ops", None) or ()):
+            self.write("status", f"operator -- {done}")
+        self._ops = None
         # The mission clock as it stood when the live call ran. Nobody thinks in a
         # replay, so this is what charges her thinking -- and why `_think` does not.
         clock = getattr(self, "_clock", None)
