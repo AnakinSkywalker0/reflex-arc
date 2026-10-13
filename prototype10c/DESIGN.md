@@ -1,11 +1,12 @@
 # Prototype 10c — the rover works by itself
 
 10c is 10b with the rover left to work on its own. A mission clock runs every sol, the sol is a
-span of mission time, and the steps are a battery only the pad recharges. Mission control can talk
-to her only when someone is at the desk: beside the pad, or by urgent call when she is away from
-it. If the cloud model drops, a local one takes over, and a report is written from the record
-every night. The clock, battery, fallback and report were built in DA task 19. Comms and the
-fixes below were added on 13 Oct.
+span of mission time, and the steps are a battery only the pad recharges. Mission control keeps to
+the edges of her sol: it briefs her before, talks after, answers when she radios from the pad,
+and can break in one way with an urgent message. Her memory is a few named entries she keeps lean
+herself. If the cloud model drops, a local one takes over, and a report is written from the
+record every night. The clock, battery, fallback and report were built in DA task 19; the rest
+was added on 13 Oct. Every command and key is in [`MANUAL.md`](MANUAL.md).
 
 Everything not listed here is inherited from [`../prototype10b/DESIGN.md`](../prototype10b/DESIGN.md)
 and [`../prototype10a/DESIGN.md`](../prototype10a/DESIGN.md). Setup and every key are in
@@ -37,9 +38,9 @@ carries in `night.json`, so `--resume` wakes stranded too.
 
 The clock opens each sol with a turn of its own (`autopilot.py`), and opens another whenever one
 ends without her choosing to stop. It closes the sol when she calls `end`, when the clock runs
-out, or after `AUTO_TURNS` turns. Then it asks for tomorrow's note and rolls the night over. Its
-lines are `auto` on the tape, never `you`, so a sol nobody coached can't be taken for one somebody
-did. The operator-runs-every-sol mode is gone from 10c; 10b keeps it.
+out, or after `AUTO_TURNS` turns. Then it asks her to bring her memory up to date and rolls the
+night over. Its lines are `auto` on the tape, never `you`, so a sol nobody coached can't be taken
+for one somebody did. The operator-runs-every-sol mode is gone from 10c; 10b keeps it.
 
 - **Her `end` closes the sol.** The exception is an `end` sent after a cap stopped the turn,
   which gets a fresh turn instead. The cap sent her to `end`, and the first unattended run lost
@@ -47,33 +48,53 @@ did. The operator-runs-every-sol mode is gone from 10c; 10b keeps it.
 - **A request that never reached the model** is asked again after `AUTO_RETRY_SECONDS` and is
   not counted as a turn.
 - **The SPACE pause is off by default** (`ROVER_PAUSE none`), since nobody has to be at the keys.
-  `key` still works for a run with a rover on the floor.
 
-## Comms: someone at the desk, or nobody
+## The desk keeps to the edges of the sol
 
-`COMMS` says whether anyone is at mission control's desk, and she is told which.
+`COMMS` says whether anyone is at mission control's desk, and she is told which. With someone
+there, the desk talks to her in four places, and only one of them costs her any of the sol:
 
-| | beside the pad | away from the pad |
+| when | how | costs her |
 |---|---|---|
-| **comms on**: someone will answer | talk both ways: TAB from the desk, `radio` from her | urgent only: U from the desk, `sos` from her |
-| **comms off**: she knows nobody is there | nothing | nothing |
+| before the sol | `/start <message>`: the clock's paragraph with the desk's words appended | nothing |
+| a question before she starts | the morning window stays open while she only talks | nothing |
+| mid-sol | her `radio`, from beside the pad only | every second the line is open |
+| after the sol | the night window, if she ended beside the pad | nothing |
 
-**A line** opens when one side calls, or at night when the sol ends beside the pad with comms on,
-after she has reported. While it is open the clock opens no turns. The desk's messages open them,
-and her `end` hands back to the desk, because the clock only takes an `end` as closing the sol in
-a turn it opened. The line closes on N, or after `COMMS_WAIT` (60 s) with nothing typed and nothing
-being said. By day the clock then has the sol back and tells her so; at night the next sol opens.
+With a window open on the app, the clock holds a window at each of these and waits up to
+`COMMS_WAIT` (60 s) for the desk. Typing holds it, `/next` ends it, and the night one is held
+whatever the comms. While a window is open her `end` hands back to the desk rather than closing
+the sol. A run with no window, or a replay, holds none: nobody is there.
 
-- **A call from the desk** stops her after the call in hand (`Conversation.cut`). The drive it
-  started finishes, and nothing more is asked. An urgent call's first line reaches her marked
-  URGENT. U works while the sol runs; once it is over, the night line is the channel.
-- **Her calls** are two skills, offered only when they can get through, because what is not
-  offered cannot be asked for. `radio` is offered beside the pad and `sos` everywhere, and
-  neither when nobody is at the desk. A call that gets through ends her turn. Nothing in the
-  world gives her a reason for `sos` yet; hazards will.
-- **Changing comms mid-sol** swaps her prompt at the next turn and tells her. A line open when
-  the desk leaves closes as soon as she has finished speaking.
-- **A run with no window starts with comms off,** because nobody is there to answer.
+- **Free before the sol.** Her words cost no mission time until her first call begins the sol
+  (`Conversation.free`), so a question about her briefing is free.
+- **Urgent is one-way,** and lives in the desk's terminal rather than her chat, because the desk
+  does not talk to her while she works. It stops her after the call in hand
+  (`Conversation.cut`), arrives marked URGENT, and she carries on under the clock. To answer she
+  drives to the pad and radios. A briefing given while she is away from the pad arrives the same
+  way.
+- **Her chat holds what is meant for her:** `/start`, `/next`, the board and words. The terminal
+  holds what runs the mission: `urgent`, `comms`, `sols`, `place`, and playing by hand.
+- **The board** is mission control's numbered standing orders, posted and retracted one at a
+  time. She reads it on every request and can't touch it, so she has no reason to spend her
+  memory on the desk's rules.
+
+## Her memory is named entries
+
+Up to `MEMORY_ENTRIES` (10) entries of `MEMORY_CHARS` (300) characters. `remember(name, text)`
+writes or replaces one, and `forget(name)` drops one; at the cap she forgets before she adds, as
+the handoff's line cap works. All of it is in her view on every request. Her prompt carries the
+rules our own memory keeps:
+- one subject to an entry;
+- change an entry rather than add a near-copy;
+- forget what's no longer true;
+- don't copy what the view already carries;
+- write sols as numbers.
+
+It was one paragraph, rewritten whole every night, and that rewrite is where a standing constraint
+gets dropped. An entry she does not touch survives untouched. Replacing rather than appending,
+settled in prototype 1, still holds per entry. Nights saved before this wake with their paragraph
+as one entry called "note".
 
 ## The record and the report
 
@@ -101,13 +122,16 @@ Two fixes landed in 10c:
   `over`, whether the sol was already over when the call ran. Before, a drive asked for at dusk
   was refused live but ran in the replay, which then diverged.
 - **A turn ends in the replay where it ended live,** even with no `end`: a cap's refusals ended
-  it, or later an urgent call. Every call row carries its `turn`, and the replay ends the turn
-  idle at the same call. Otherwise the next turn's drive is refused against the old turn's
-  allowance.
+  it, or an urgent call. Every call row carries its `turn`, and the replay ends the turn idle at
+  the same call. Otherwise the next turn's drive is refused against the old turn's allowance.
+- **What the operator did lands before the call it came before.** A placement or an order
+  typed in the morning window was there for the whole live sol, so the replay applies it before
+  her first call, not at nightfall.
 
 Tapes kept before these fields existed replay as before. The DA's two final-code runs replay with
-0 mismatches. No line opens in a replay, because nobody on a tape can be talked to. The desk's
-turns play as the clock's, and the calls inside them come out the same.
+0 mismatches, and a run with a briefing, a radio call, an urgent message and an extended
+mission replays with 0 as well. No window opens in a replay, because nobody on a tape can be
+talked to. The desk's turns play as the clock's, and the calls inside them come out the same.
 
 **Headless runs.** SIGTERM keeps the run and exits. Before, SDL turned it into the
 keep-or-discard question, and a run with nobody to answer waited for ever. A run with no window
@@ -116,25 +140,26 @@ is kept as `runs/<stamp>-headless/`.
 ## For the team: start here
 
 Work on a branch and open a pull request ([`../repo_rules.md`](../repo_rules.md)). Follow
-[`README.md`](README.md); every suite in `game/` should pass.
+[`README.md`](README.md); every suite in `game/` should pass. [`MANUAL.md`](MANUAL.md) has every
+command.
 
-- **Run a mission:** `--sols 3`, on the **design** preset (`--preset design`), with
-  `gemma4:e4b` for the machinery. Anything that becomes a conclusion gets repeated on
-  `gemma4:31b-cloud`.
-- **Talk to her at night.** Plan the next sol on the line, or with `/orders`, and see whether it
-  shows in what she does.
-- **Press U mid-drive,** tell her to come home, then N. Try TAB beside the pad, and C off and on.
-- **Check what survives the night:** the map, the note, the orders, the finished objectives, and
-  a stranding. `report.md` in the run directory is the record. P shows her note.
+- **Run a mission:** `--arena 50 --sols 3`, with `gemma4:e4b` for the machinery. Anything that
+  becomes a conclusion gets repeated on `gemma4:31b-cloud`.
+- **Brief her and talk at night.** Give a constraint in conversation, not on the board, and
+  watch whether she keeps it in her memory, unprompted, across the sols it should last.
+- **Try the board, a radio call, and `urgent` mid-drive** from your terminal (U).
+- **Check what survives the night:** the map, her memory, the board, the finished objectives,
+  and a stranding. `report.md` in the run directory is the record. P shows her memory.
 - **`--resume runs/<stamp>`** wakes on the next sol. **`--replay runs/<stamp>`** plays it back
   without "REPLAY DIVERGED".
-- **Report each result with its n,** and with its run directory. The same script has given 31,
-  14 and 32 calls on one build.
+- **Report each result with its n,** and with its run directory.
 
 ## Not in 10c
 
-- **The rover-bridge merge.** It is deferred until Ishan reviews it.
-- **Gemini keys, and a test on Windows.** Both are deferred.
-- **Orders given at launch.** A run takes its orders from a resumed night or from the night
-  line. With none, she is told to explore.
-- **Anything that makes her call `sos`.** Hazards and damage are parked.
+- **Calling from anywhere at a battery cost,** with a partial recharge for coming back to the pad
+  mid-sol. The numbers for both are open; next conversation.
+- **`sos`.** It returns when hazards give her a reason to call from anywhere.
+- **Objectives with a timer.**
+- **The rover-bridge merge**, deferred until Ishan reviews it, and **Gemini keys and a test on
+  Windows.**
+- **Orders given at launch.** The morning window and the board cover it.

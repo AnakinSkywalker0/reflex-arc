@@ -57,8 +57,9 @@ corrected. The overhead camera in [`ARCHITECTURE.md`](ARCHITECTURE.md) is supers
    [`prototype10c/DESIGN.md`](prototype10c/DESIGN.md) covers:
    - a mission clock that runs every sol, with a battery only the pad recharges;
    - home before dark, or stranded;
-   - comms: mission control talks to her only when someone is at the desk, from beside the pad
-     or by urgent call when she is away from it;
+   - mission control at the edges of the sol: a briefing before it, talk after it, her radio
+     from the pad mid-sol at a cost in time, and a one-way urgent message;
+   - her memory as a few named entries she keeps lean, and a numbered board of orders;
    - a local fallback when the cloud model drops;
    - a report written from the record.
 
