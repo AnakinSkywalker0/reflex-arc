@@ -31,6 +31,8 @@ prototype-link-bot/
   README.md            this file — for people
   AGENTS.md            working rules for AI coding agents
   CLAUDE.md            the same, for Claude
+  grpc-link.md         the planned link to the brain, in one room
+  long-distance.md     running that link far apart, and the methods for it
   can_do.md            tidy-ups to do after the demo, not before
   rover/
     rover              the command you type on the Pi: ~/rover start, map, nav, stop ...
@@ -143,9 +145,10 @@ An earlier link, `rover_bridge/` and `rover_link.py` on the team repo's `rover-b
 drove by **timed pulses** with no sensing — "go forward 1 second" — so its errors added up with no
 way to notice them. This stack replaces that with closed-loop driving on the LiDAR.
 
-**How the laptop and the Pi talk is proposed, not yet agreed:** gRPC, inside a Tailscale private network when they
-are far apart. The why, the network setup, safety and the build steps are in
-[`connection.md`](connection.md).
+**How the laptop and the Pi talk is proposed, not yet agreed:** gRPC on a local router, in
+[`grpc-link.md`](grpc-link.md) — why, the commands, safety and the build steps. Running it far
+apart (Tailscale, 4G, and later the brain on the rover) is in
+[`long-distance.md`](long-distance.md).
 
 **Not decided yet:**
 

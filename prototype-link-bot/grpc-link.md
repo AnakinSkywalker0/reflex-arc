@@ -1,29 +1,29 @@
-# Connecting the bot to the brain
+# The gRPC link — brain to bot, in the same place
 
-**Proposed, not yet agreed with the team.** The brain (Reflex Arc on the laptop) and the bot
-(ROS 2 on the Pi) talk over **gRPC**. When they
-are in different places, the same gRPC runs inside a **Tailscale** private network. ROS stays
-inside the rover; the brain never needs ROS.
+The brain (Reflex Arc, `prototype10c` on the laptop) and the bot (ROS 2 on the Pi) talk over
+**gRPC**, on a local network both of them join. ROS stays inside the rover; the brain never needs
+ROS. This file is the link as planned for the first build, with the laptop and rover in the same
+room. Running it over a long distance is in [`long-distance.md`](long-distance.md).
+
+**Status: proposed by Krish, not yet agreed with the team.** Nothing here is built yet.
 
 ```
-LAPTOP (brain)                              PI (bot)
-Reflex Arc game  ── gRPC (over Tailscale) ──►  bridge (gRPC server)
-                 ◄── position, results ──        │
-                                                 ▼
-                                            ROS 2: Nav2, SLAM, LiDAR, motors
+LAPTOP (brain)                          PI (bot)
+Reflex Arc game  ──── gRPC ────►  bridge (gRPC server)
+                 ◄── results ───        │
+                                        ▼
+                                  ROS 2: Nav2, SLAM, LiDAR, motors
 ```
 
 ## Why gRPC
 
-gRPC is a way for two programs on different computers to call each other's functions. It runs
-on top of HTTP, so it is HTTP with the parts we need already built in:
+gRPC lets a program on one computer call a function on another. It runs on top of HTTP, with the
+parts we need already built in:
 
 - **A contract.** One `.proto` file lists every command and reply. Both sides are built from it,
   so they can't disagree about the message format.
 - **Time limits.** Every call has a deadline. No waiting forever.
-- **Cancel.** Cancelling a move on the laptop tells the Pi at once, so it can brake. (10c's
-  urgent call lets the current drive finish, so it doesn't use this today. Whether it should is
-  undecided.)
+- **Cancel.** Cancelling a move on the laptop tells the Pi at once, so it can brake.
 - **Knows when the line is dead.** Small keepalive pings notice a dropped link within seconds —
   but only if keepalive is switched on and set short (about 1–2 s) on both sides. The defaults
   are off or far too slow.
@@ -57,8 +57,8 @@ Rejected:
 - `LINK_LOST` — the rover braked because it lost the laptop. This is a network problem, not the
   ground, and the model is told so.
 
-The brain trusts the reply, not the simulation. If the real cell is different, the game moves
-its rover there and the model replans from it.
+The brain trusts the reply, not the simulation. If the real cell is different, the game moves its
+rover there and the model replans from it.
 
 The sim drives the whole leg before the rover does, so on `SHORT`, `BLOCKED` or `LINK_LOST` it
 has already lifted fog and charged battery for cells the real rover never reached. Whether those
@@ -67,7 +67,7 @@ are undone is undecided.
 **Every reply goes on the tape.** Replay runs with no rover, so it reads the rover's replies from
 the tape. Without them, any run with a `SHORT` diverges on replay.
 
-## The network
+## The network, in one room
 
 Two separate links can fail:
 
@@ -75,14 +75,11 @@ Two separate links can fail:
 2. **Laptop ↔ internet** — the cloud model.
 
 One phone hotspot carrying both is the weakest setup: it sleeps, drops on calls, and some block
-devices from seeing each other. Better:
+devices from seeing each other. Use instead:
 
-- **Same room:** a small travel router (or the Pi's own Wi-Fi) for laptop ↔ Pi. The laptop gets
-  internet from a phone over a **USB cable**. Give the Pi a fixed address. Use 5 GHz if possible.
-- **Far apart:** **Tailscale** on both the laptop and the Pi. It puts them in one private,
-  encrypted network over the internet, each with an address that never changes. gRPC uses that
-  address and nothing else changes. The Pi needs its own internet there (arena Wi-Fi or a 4G
-  dongle). Never open a port on a router to reach the Pi.
+- **A small travel router** (or the Pi's own Wi-Fi) for laptop ↔ Pi. Give the Pi a fixed
+  address. Use 5 GHz if possible.
+- **The laptop's internet from a phone over a USB cable,** so the cloud model has its own path.
 
 If the internet drops, prototype10c already switches to the local model. Download it before a
 run.
@@ -91,23 +88,22 @@ run.
 
 These hold whatever the network does:
 
-- **The rover brakes if it stops hearing from the laptop.** No laptop, no driving. Braking
-  means cancelling the Nav2 goal **and** running `stop_cmd.py`, because the motor node's own
+- **The rover brakes if it stops hearing from the laptop.** No laptop, no driving. Braking means
+  cancelling the Nav2 goal **and** running `stop_cmd.py`, because the motor node's own
   stop-on-silence (`deadman`) is off.
 - **Every move has a number,** so a lost reply never drives the same move twice. If the same
   number arrives again after a reconnect, the Pi sends back the result it saved — even for a leg
   that was stopped halfway — and does not drive again.
 - **Obstacle avoidance stays on the Pi.** Nav2 checks the LiDAR many times a second, so a slow
   link never makes the rover drive blind.
-- **When far away:** a STOP button on the game screen, lower speed, a closed-off arena, and if
-  possible one person near the rover.
+- **A STOP button on the game screen** that calls `Stop()`.
 
 ## Time
 
-The rover takes about 7–10 s a leg; the network adds well under a second, even over Tailscale.
-The mission clock charges a fixed `STEP_SECONDS` a cell, and waiting for the rover is free, the
-same as the SPACE pause. So the real rover's speed doesn't change the sol, and replays still
-match, as long as the rover's replies are on the tape.
+The rover takes about 7–10 s a leg; on a local router the network adds a few milliseconds. The
+mission clock charges a fixed `STEP_SECONDS` a cell, and waiting for the rover is free, the same
+as the SPACE pause. So the real rover's speed doesn't change the sol, and replays still match, as
+long as the rover's replies are on the tape.
 
 ## How to build it
 
@@ -140,31 +136,18 @@ Each step ends with a check. Don't start the next one until it passes.
    walking far from the router.
    *Done when* none of these leaves the rover driving on its own.
 8. **Full missions:** one sol, then three in a row. Record each with its run directory and how
-   often it was `SHORT`, `BLOCKED` or lost the link.
+   often it was `SHORT`, `BLOCKED` or `LINK_LOST`.
 9. **Write it up** here and open a pull request.
-
-## Later, for long distance
-
-Not for the first build. In order of value:
-
-1. **The brain on the rover.** The rover decides and drives by itself; the laptop becomes
-   mission control. A dropped link then stops the talking, not the rover — the Mars idea, and
-   10c's comms rules already fit it. Whether the Pi can carry it alongside SLAM and Nav2 is
-   untested.
-2. **A separate emergency stop** over LoRa radio, which reaches kilometres with no internet.
-3. **Two ways online** on the rover, Wi-Fi and 4G, switching by itself.
-4. **Zenoh** instead of a direct call, if links drop often: it is built for robots on poor
-   networks and holds messages until the line comes back.
-5. **Live video** over WebRTC, for watching only.
 
 ## Not decided yet
 
+- gRPC itself, until the team agrees it.
 - Cell size and where cell (0, 0) sits on the room map.
 - Whether a leg goes to Nav2 as one goal, one goal per cell, or the cell centres as one list of
   waypoints (Nav2's waypoint follower). The list keeps the rover on the path the sim checked
   without stopping at every cell.
 - What `SHORT`, `BLOCKED` and `LINK_LOST` do to fog and battery the sim already spent.
-- Whether an urgent call from the desk cancels the drive in progress.
+- Whether an urgent call from the desk cancels the drive in progress. 10c lets the drive finish
+  today.
 - Exactly when a stop counts as `SHORT` rather than `DONE`.
 - Which prototype the link joins (prototype 12 forks after 11).
-- The transport itself, until the team agrees gRPC.
