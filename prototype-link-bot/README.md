@@ -143,6 +143,10 @@ An earlier link, `rover_bridge/` and `rover_link.py` on the team repo's `rover-b
 drove by **timed pulses** with no sensing — "go forward 1 second" — so its errors added up with no
 way to notice them. This stack replaces that with closed-loop driving on the LiDAR.
 
+**How the laptop and the Pi talk is chosen:** gRPC, inside a Tailscale private network when they
+are far apart. The why, the network setup, safety and the build steps are in
+[`connection.md`](connection.md).
+
 **Not decided yet:**
 
 - **Cells to metres.** How big one grid cell is on the floor, and where cell (0, 0) sits on the
@@ -151,8 +155,6 @@ way to notice them. This stack replaces that with closed-loop driving on the LiD
   own goal.
 - **How the rover reports back.** Its pose read through `tf_pose.py`, turned back into a cell —
   and what counts as "stopped short" versus "arrived".
-- **How the laptop and the Pi talk.** The old bridge used HTTP on port 5000; nothing is chosen
-  for this one.
 - **Which prototype it joins.** The README says hardware integration (prototype 12) forks from
   10b, 10c or 11, decided after 11.
 
