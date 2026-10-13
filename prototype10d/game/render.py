@@ -329,7 +329,10 @@ def _hud(surf, w, f, reel=None):
     y0 = surf.get_height() - C.HUD_H
     pygame.draw.line(surf, C.FAINT, (0, y0), (surf.get_width(), y0), 1)
 
-    surf.blit(f.big.render(f"SOL {w.day}    {budget(w)}", True, C.INK), (MARGIN, y0 + 12))
+    head = f.big.render(f"SOL {w.day}    {budget(w)}", True, C.INK)
+    surf.blit(head, (MARGIN, y0 + 12))
+    # The messages sit right of the longest that line gets, never under it.
+    side = MARGIN + max(300, head.get_width() + 30)
     # The world is ahead of the screen while a drive is replaying, so say where the
     # rover is being *drawn* and where it actually already is. A HUD that showed only
     # the true position would disagree with the dot for several seconds at a time.
@@ -357,15 +360,15 @@ def _hud(surf, w, f, reel=None):
     if w.awaiting_rover is not None:
         leg = " ".join(w.awaiting_rover)
         surf.blit(f.hud.render(f"ROVER DRIVING  {leg[:40]}", True, C.GOOD),
-                  (MARGIN + 300, y0 + 14))
+                  (side, y0 + 14))
         surf.blit(f.tiny.render("SPACE when it has stopped", True, C.INK),
-                  (MARGIN + 300, y0 + 38))
+                  (side, y0 + 38))
         return
 
     for i, (msg, tone) in enumerate(reversed(w.log[-3:])):
         col = {"good": C.GOOD, "bad": C.BAD}.get(tone, C.INK)
         shade = tuple(min(255, int(v * (1 - i * 0.3))) for v in col)
-        surf.blit(f.hud.render(msg[:64], True, shade), (MARGIN + 300, y0 + 14 + i * 22))
+        surf.blit(f.hud.render(msg[:64], True, shade), (side, y0 + 14 + i * 22))
 
 
 def draw_map(surf, w, f, cursor):
