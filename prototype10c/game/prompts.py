@@ -81,7 +81,7 @@ line, your `end` hands the turn back to them instead of closing the sol."""
 day or at night. Work from your orders, your memory and your own judgement."""
 
 
-# Each skill as the prompt lists it. `radio` and `sos` only with someone at the desk.
+# Each skill as the prompt lists it. `radio` only with someone at the desk.
 SKILLS = [("goto(x, y, why)", "drive there. One call drives the whole way."),
           ("distance(x, y, why)", "what that drive would cost. Spends nothing."),
           ("execute(why)", "do the work at the objective you are standing beside."),

@@ -87,18 +87,31 @@ def test_the_work_is_paid_for_once_and_the_objective_goes():
 
 
 def test_refusing_says_where_the_work_is():
-    print("refusals carry the map")
+    print("refusals carry the map she has, and no more")
     w = World()
     c = skills.call(w, "execute", {"why": "from the pad"})
     ok = check("standing nowhere near one, it refuses",
                c.result.startswith("NOT_BESIDE_ONE"), c.result[:60])
     ok &= check("nothing was spent", c.steps == 0 and not w.day_over)
-    # A code with no sentence after it is what `DONE(beside=...)` cost four days.
-    ok &= check("...and it names every objective still to do",
-                all(f"({o.cell[0]},{o.cell[1]})" in c.result for o in w.objectives),
+    ok &= check("with none found, it names none",
+                not any(f"({o.cell[0]},{o.cell[1]})" in c.result for o in w.objectives),
                 c.result[:160])
-    ok &= check("...with the cost of each", all(f"{o.cost} steps" in c.result
-                                                for o in w.objectives))
+    seen, *fogged = w.objectives
+    w.here.reveal(*seen.cell)
+    c = skills.call(w, "execute", {})
+    # A code with no sentence after it is what `DONE(beside=...)` cost four days.
+    ok &= check("...it names the one she has seen, with its cost",
+                f"({seen.cell[0]},{seen.cell[1]}), {seen.cost} steps" in c.result,
+                c.result[:160])
+    ok &= check("...and none still under the fog",
+                not any(f"({o.cell[0]},{o.cell[1]})" in c.result for o in fogged))
+    _at(w, fogged[0])
+    c = skills.call(w, "execute", {})
+    ok &= check("doing one names only the found ones left",
+                c.result.startswith("EXECUTED")
+                and f"({seen.cell[0]},{seen.cell[1]})" in c.result
+                and not any(f"({o.cell[0]},{o.cell[1]})" in c.result for o in fogged[1:]),
+                c.result[:200])
     return ok
 
 

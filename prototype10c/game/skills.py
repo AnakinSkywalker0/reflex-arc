@@ -265,8 +265,8 @@ TOOLS = [
         "name": "radio",
         "description": (
             "Call mission control, from beside the pad: a question only they can "
-            "answer, or news that changes the plan. It works only beside the pad; away "
-            "from it only sos gets through. It ends your turn, and their answer is your "
+            "answer, or news that changes the plan. It works only beside the pad. It "
+            "ends your turn, and their answer is your "
             "next message -- or, if nobody answers, the sol is yours again. Costs no "
             "steps."),
         "parameters": {"type": "object", "properties": {
@@ -578,16 +578,18 @@ def _count_cells(world, x, y):
 def _execute(world):
     """Do the work at the objective the rover is beside, and say what it cost.
 
-    Every refusal says where the nearest unfinished objective is and that nothing was
-    spent. A bare code leaves a 4B model nothing to act on, which is the lesson
+    Every refusal says where the unfinished objectives she has found are, and that
+    nothing was spent. A bare code leaves a 4B model nothing to act on, which is the lesson
     `DONE(beside=...)` cost four days: a field is not a sentence.
     """
-    left = [o for o in world.objectives if not o.done]
+    # Only what she has seen: naming one still under the fog hands her its location.
+    left = [o for o in world.objectives if not o.done and world.here.visible(*o.cell)]
     o = world.adjacent_objective()
     if o is None:
         if not left:
-            return ("NOTHING_TO_DO -- every objective on this arena is finished. "
-                    "Nothing was spent.")
+            return ("NOT_BESIDE_ONE -- the rover is not next to an objective, so nothing "
+                    "happened and nothing was spent. No objective you have found is left "
+                    "to do; any others are still under the fog.")
         near = ", ".join(f"{p.priority} priority at ({p.cell[0]},{p.cell[1]}), "
                          f"{p.cost} steps of work" for p in left)
         return (f"NOT_BESIDE_ONE -- the rover is not next to an objective, so nothing "
@@ -610,7 +612,8 @@ def _execute(world):
                 f"needs {o.cost} steps and {why} after {spent}. The objective is not "
                 f"done and those steps are gone. Start it with more in hand.")
     rest = [p for p in left if p is not o]
-    tail = (" Nothing else is left to do." if not rest else
+    tail = (" No other objective you have found is left to do; any others are still "
+            "under the fog." if not rest else
             " Still to do: " + ", ".join(
                 f"{p.priority} priority at ({p.cell[0]},{p.cell[1]}), {p.cost} steps"
                 for p in rest) + ".")
@@ -743,9 +746,11 @@ def call(world, name, args, history=()):
                         "only link. Nothing was sent; carry on.")
             return c
         world.record(name, text=text, at=list(world.pos))
-        c.result = ("RADIOED -- mission control has it. Your turn is over, and every second "
-                    "the line is open comes off the sol: their answer, if they give one, is "
-                    "your next message.")
+        c.result = ("RADIOED -- mission control has it. The sol is over, so the line costs "
+                    "nothing; finish what the night needs, then call end." if world.day_over
+                    else "RADIOED -- mission control has it. Your turn is over, and every "
+                    "second the line is open comes off the sol: their answer, if they give "
+                    "one, is your next message.")
         return c
 
     if name == "count":

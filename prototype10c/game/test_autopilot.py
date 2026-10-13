@@ -766,6 +766,60 @@ def test_the_night_waits_whatever_the_comms():
     return True
 
 
+def test_comms_coming_on_mid_window_opens_the_line():
+    print("comms on during the night")
+    with Desk(on=False):
+        w = World()
+        model = Model([END, END])
+        c, pilot, _ = sol(w, model)
+        pilot.tick(c, w, now=0.0)
+        pilot.next()
+        opened, _ = until(c, pilot, w, lambda got: pilot.wait == "night", start=1)
+        ok = check("comms off at dusk: no line", opened is not None and not pilot.talk)
+        S.COMMS = True
+        pilot.tick(c, w, now=float(opened + 1))
+        ok &= check("comms on, beside the pad: the line opens",
+                    pilot.talk and pilot.why_not() is None, str(pilot.why_not()))
+        model.replies += [("Here.", []), END]
+        ok &= check("and the desk's words reach her", pilot.say(c, w, "are you there?") is None)
+        S.COMMS = False
+        until(c, pilot, w, lambda got: not pilot.talk, start=opened + 2, frames=10)
+        ok &= check("comms off again: the line shuts, and says why",
+                    not pilot.talk and pilot.why_not().startswith("comms are off"))
+    return ok
+
+
+def test_a_report_radioed_at_dusk_does_not_cost_her_memory():
+    """Sol 2 of the 13 Oct run: she radioed the dusk report, the radio ended the turn,
+    and the memory she was asked to bring up to date went into sol 3 stale."""
+    print("the dusk report")
+    with Desk():
+        w = World()
+        model = Model([END,
+                       ("", [call("radio", text="three done; two left in the west")]),
+                       ("", [call("remember", name="plan", text="west first on sol 2")]),
+                       END])
+        c, pilot, _ = sol(w, model)
+        pilot.tick(c, w, now=0.0)
+        pilot.next()
+        opened, _ = until(c, pilot, w, lambda got: pilot.wait == "night", start=1)
+        asked = said_by(c, "auto")[-1]
+        ok = check("dusk asks for her memory before her report",
+                   asked.index("remember") < asked.index("tell them"), asked)
+        radio = next(k for k in c.calls if k.name == "radio")
+        ok &= check("the radio got through, and says the line is free after the sol",
+                    skills.got_through(radio) and "costs nothing" in radio.result,
+                    radio.result)
+        ok &= check("and the turn went on to her memory",
+                    w.notes.memory == {"plan": "west first on sol 2"}, str(w.notes.memory))
+        ok &= check("then the night, with a line", opened is not None and pilot.talk)
+        left = w.time_left
+        w.charge(5.0)
+        ok &= check("thinking after the sol is over leaves the clock alone",
+                    w.time_left == left, f"{left} -> {w.time_left}")
+    return ok
+
+
 def test_the_desk_talks_on_the_night_line():
     print("talking at night")
     with Desk():
@@ -1009,6 +1063,8 @@ if __name__ == "__main__":
                test_start_briefs_her(),
                test_a_question_before_the_sol_is_free(),
                test_the_night_waits_whatever_the_comms(),
+               test_comms_coming_on_mid_window_opens_the_line(),
+               test_a_report_radioed_at_dusk_does_not_cost_her_memory(),
                test_the_desk_talks_on_the_night_line(),
                test_a_radio_call_mid_sol_costs_the_sol(),
                test_urgent_is_one_way_and_stops_her_after_the_call_in_hand(),

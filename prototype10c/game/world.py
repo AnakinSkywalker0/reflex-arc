@@ -423,7 +423,7 @@ class World:
         world held -- replay sets the clock from the tape, and a drive that stops on its
         last step must stop there on both.
         """
-        if S.DAY_MODE == "human" or seconds <= 0:
+        if S.DAY_MODE == "human" or seconds <= 0 or self.day_over:
             return
         self.time_left = max(0.0, round(self.time_left - seconds, 3))
         if self.time_left <= 0:

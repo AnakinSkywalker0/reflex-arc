@@ -128,10 +128,9 @@ Two fixes landed in 10c:
   typed in the morning window was there for the whole live sol, so the replay applies it before
   her first call, not at nightfall.
 
-Tapes kept before these fields existed replay as before. The DA's two final-code runs replay with
-0 mismatches, and a run with a briefing, a radio call, an urgent message and an extended
-mission replays with 0 as well. No window opens in a replay, because nobody on a tape can be
-talked to. The desk's turns play as the clock's, and the calls inside them come out the same.
+Tapes kept before 14 Oct diverge at their first `execute`, whose result no longer names
+objectives she has not seen. Before that point they replay as they did. No window opens in a
+replay, because nobody on a tape can be talked to. The desk's turns play as the clock's, and the calls inside them come out the same.
 
 **Headless runs.** SIGTERM keeps the run and exits. Before, SDL turned it into the
 keep-or-discard question, and a run with nobody to answer waited for ever. A run with no window

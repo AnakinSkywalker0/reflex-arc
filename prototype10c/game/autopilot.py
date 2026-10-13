@@ -104,7 +104,7 @@ def desk(on):
 # asked for judgement only. Asking her to restate facts is how a wrong one got in.
 REPORT = ("Mission control's report is written from the record: what was finished, what "
           "was mapped, where the rover is. Add what only you can say with remember -- what "
-          "is still worth doing out there and why it was left. Then call end.")
+          "is still worth doing out there and why it was left.")
 
 KEEP = ("Before the night, bring your memory up to date: remember what tomorrow needs -- "
         "what you left and why, what to do first, any constraint still standing -- and "
@@ -118,22 +118,23 @@ def dusk(world):
     if world.lost:
         return (f"Sol {world.day} is over, and the rover is lost: the battery holds less "
                 f"than the trip back to the pad needs, and nothing else recharges it. The "
-                f"mission ends here. {REPORT}")
+                f"mission ends here. {REPORT} Then call end.")
     line = S.COMMS and world.docked
-    told = (" The rover is beside the pad and mission control is at the desk, so tell them "
-            "in a few lines what only you can say -- what is still worth doing out there "
-            "and why it was left. The record already has what was finished and mapped."
-            if line else "")
+    # The memory is asked for first: a report sent first once ended the turn before it.
+    told = (" Then, since the rover is beside the pad and mission control is at the desk, "
+            "tell them in a few lines what only you can say -- what is still worth doing "
+            "out there and why it was left. The record already has what was finished and "
+            "mapped." if line else "")
+    then = " Then call end" + ("; they may answer." if line else ".")
     out = ("" if world.docked else
            f" The rover is not beside the pad, so it is stranded tonight: no recharge, "
            f"and tomorrow it wakes where it stands on {world.battery} steps of battery."
            + (" Away from the pad there is no line to mission control tonight."
               if S.COMMS else ""))
     if S.MISSION_SOLS and world.day >= S.MISSION_SOLS:
-        return (f"Sol {world.day} is over, and it was the last sol of the mission.{told} "
-                f"{REPORT}")
-    return (f"Sol {world.day} is over.{out}{told} {KEEP} Then call end"
-            + ("; they may answer." if line else "."))
+        return (f"Sol {world.day} is over, and it was the last sol of the mission. "
+                f"{REPORT}{told}{then}")
+    return f"Sol {world.day} is over.{out} {KEEP}{told}{then}"
 
 
 # The pane's line when a window opens.
@@ -273,8 +274,8 @@ class Autopilot:
             return self._close(conv, world)
         if why == "radio" and (world.day_over or not S.COMMS):
             return self._close(conv, world)
-        if why != "radio" and self.talk and not S.COMMS:
-            self.talk = False                       # the desk left; the wait goes on
+        if why != "radio":                          # the desk may leave or come back
+            self.talk = S.COMMS and (why != "night" or world.docked)
         if self.quiet_since is None:
             self.quiet_since = now
         if self.skip or now - self.quiet_since >= S.COMMS_WAIT:

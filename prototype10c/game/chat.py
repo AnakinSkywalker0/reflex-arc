@@ -637,9 +637,10 @@ class Conversation:
             self._stop("she called end")
             return
         if name == "radio":
-            # A call that got through ends her turn: the desk answers, or does not.
+            # A call that got through ends her turn: the desk answers, or does not. After
+            # the sol it is her report, and the turn goes on to her memory.
             self._answer(first, move=False, counts=False)
-            if skills.got_through(self.calls[-1]):
+            if skills.got_through(self.calls[-1]) and not self.world.day_over:
                 self._stop("she radioed mission control")
             else:
                 self._next()
