@@ -31,6 +31,8 @@ prototype-link-bot/
   README.md            this file — for people
   AGENTS.md            working rules for AI coding agents
   CLAUDE.md            the same, for Claude
+  grpc-link.md         the planned link to the brain, in one room
+  long-distance.md     running that link far apart, and the methods for it
   can_do.md            tidy-ups to do after the demo, not before
   rover/
     rover              the command you type on the Pi: ~/rover start, map, nav, stop ...
@@ -143,6 +145,11 @@ An earlier link, `rover_bridge/` and `rover_link.py` on the team repo's `rover-b
 drove by **timed pulses** with no sensing — "go forward 1 second" — so its errors added up with no
 way to notice them. This stack replaces that with closed-loop driving on the LiDAR.
 
+**How the laptop and the Pi talk is proposed, not yet agreed:** gRPC on a local router, in
+[`grpc-link.md`](grpc-link.md) — why, the commands, safety and the build steps. Running it far
+apart (Tailscale, 4G, and later the brain on the rover) is in
+[`long-distance.md`](long-distance.md).
+
 **Not decided yet:**
 
 - **Cells to metres.** How big one grid cell is on the floor, and where cell (0, 0) sits on the
@@ -151,8 +158,6 @@ way to notice them. This stack replaces that with closed-loop driving on the LiD
   own goal.
 - **How the rover reports back.** Its pose read through `tf_pose.py`, turned back into a cell —
   and what counts as "stopped short" versus "arrived".
-- **How the laptop and the Pi talk.** The old bridge used HTTP on port 5000; nothing is chosen
-  for this one.
 - **Which prototype it joins.** The README says hardware integration (prototype 12) forks from
   10b, 10c or 11, decided after 11.
 
