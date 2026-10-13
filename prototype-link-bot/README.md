@@ -143,7 +143,7 @@ An earlier link, `rover_bridge/` and `rover_link.py` on the team repo's `rover-b
 drove by **timed pulses** with no sensing — "go forward 1 second" — so its errors added up with no
 way to notice them. This stack replaces that with closed-loop driving on the LiDAR.
 
-**How the laptop and the Pi talk is chosen:** gRPC, inside a Tailscale private network when they
+**How the laptop and the Pi talk is proposed, not yet agreed:** gRPC, inside a Tailscale private network when they
 are far apart. The why, the network setup, safety and the build steps are in
 [`connection.md`](connection.md).
 

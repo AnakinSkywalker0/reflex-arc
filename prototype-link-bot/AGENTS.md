@@ -51,8 +51,8 @@ Hold to the project's rules while doing it:
   re-drive to hide a miss from the model.
 - **The rover is only handed ground the simulation has already driven.** Don't send it a plan
   ahead of the sim.
-- **The transport is chosen: gRPC, over Tailscale when far apart** — see
-  [`connection.md`](connection.md), and build in the order it gives. Cell size, the cell-to-map
+- **The transport is proposed, not yet agreed: gRPC, over Tailscale when far apart** — see
+  [`connection.md`](connection.md), and build in the order it gives once the team agrees. Cell size, the cell-to-map
   origin and the exact `.proto` messages are still undecided. Ask; don't pick one silently and
   write it up as settled.
 

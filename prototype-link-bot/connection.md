@@ -1,6 +1,7 @@
 # Connecting the bot to the brain
 
-The brain (Reflex Arc on the laptop) and the bot (ROS 2 on the Pi) talk over **gRPC**. When they
+**Proposed, not yet agreed with the team.** The brain (Reflex Arc on the laptop) and the bot
+(ROS 2 on the Pi) talk over **gRPC**. When they
 are in different places, the same gRPC runs inside a **Tailscale** private network. ROS stays
 inside the rover; the brain never needs ROS.
 
@@ -20,9 +21,12 @@ on top of HTTP, so it is HTTP with the parts we need already built in:
 - **A contract.** One `.proto` file lists every command and reply. Both sides are built from it,
   so they can't disagree about the message format.
 - **Time limits.** Every call has a deadline. No waiting forever.
-- **Cancel.** Cancelling a move on the laptop tells the Pi at once, so it can brake. This is
-  what an urgent call from the desk needs.
-- **Knows when the line is dead.** Small keepalive pings notice a dropped link within seconds.
+- **Cancel.** Cancelling a move on the laptop tells the Pi at once, so it can brake. (10c's
+  urgent call lets the current drive finish, so it doesn't use this today. Whether it should is
+  undecided.)
+- **Knows when the line is dead.** Small keepalive pings notice a dropped link within seconds —
+  but only if keepalive is switched on and set short (about 1–2 s) on both sides. The defaults
+  are off or far too slow.
 - **Live updates.** One call can stream the rover's position while it drives.
 
 With plain HTTP we would build all of these by hand, and hand-built safety is where bugs hide.
@@ -50,9 +54,18 @@ Rejected:
 - `SHORT` — stopped early; here is the real cell
 - `BLOCKED` — something in the way
 - `FAILED` — something broke (lost position, no map)
+- `LINK_LOST` — the rover braked because it lost the laptop. This is a network problem, not the
+  ground, and the model is told so.
 
 The brain trusts the reply, not the simulation. If the real cell is different, the game moves
 its rover there and the model replans from it.
+
+The sim drives the whole leg before the rover does, so on `SHORT`, `BLOCKED` or `LINK_LOST` it
+has already lifted fog and charged battery for cells the real rover never reached. Whether those
+are undone is undecided.
+
+**Every reply goes on the tape.** Replay runs with no rover, so it reads the rover's replies from
+the tape. Without them, any run with a `SHORT` diverges on replay.
 
 ## The network
 
@@ -78,8 +91,12 @@ run.
 
 These hold whatever the network does:
 
-- **The rover brakes if it stops hearing from the laptop.** No laptop, no driving.
-- **Every move has a number,** so a lost reply never drives the same move twice.
+- **The rover brakes if it stops hearing from the laptop.** No laptop, no driving. Braking
+  means cancelling the Nav2 goal **and** running `stop_cmd.py`, because the motor node's own
+  stop-on-silence (`deadman`) is off.
+- **Every move has a number,** so a lost reply never drives the same move twice. If the same
+  number arrives again after a reconnect, the Pi sends back the result it saved — even for a leg
+  that was stopped halfway — and does not drive again.
 - **Obstacle avoidance stays on the Pi.** Nav2 checks the LiDAR many times a second, so a slow
   link never makes the rover drive blind.
 - **When far away:** a STOP button on the game screen, lower speed, a closed-off arena, and if
@@ -90,15 +107,17 @@ These hold whatever the network does:
 The rover takes about 7–10 s a leg; the network adds well under a second, even over Tailscale.
 The mission clock charges a fixed `STEP_SECONDS` a cell, and waiting for the rover is free, the
 same as the SPACE pause. So the real rover's speed doesn't change the sol, and replays still
-match.
+match, as long as the rover's replies are on the tape.
 
 ## How to build it
 
 Each step ends with a check. Don't start the next one until it passes.
 
 0. **Agree the basics.** Cell size, where cell (0, 0) is on the map, the rover facing grid north
-   at the start, the reply codes, who builds which side. Talk to Abhishek and Ishu.
-   *Done when* it is written here.
+   at the start, the reply codes, who builds which side. Talk to Abhishek and Ishu. Where the
+   rover sits and which way it faces when mapping starts sets the map's origin and axes, so that
+   spot and heading define the whole grid. Mark it on the floor.
+   *Done when* it is written here, and gRPC is agreed or replaced.
 1. **Network.** Router or Pi Wi-Fi, fixed Pi address, laptop on it.
    *Done when* `ping` from the laptop works every time, under about 50 ms.
 2. **Write the contract,** `proto/rover.proto`.
@@ -141,6 +160,11 @@ Not for the first build. In order of value:
 ## Not decided yet
 
 - Cell size and where cell (0, 0) sits on the room map.
-- Whether a leg goes to Nav2 as one goal or one goal per cell.
+- Whether a leg goes to Nav2 as one goal, one goal per cell, or the cell centres as one list of
+  waypoints (Nav2's waypoint follower). The list keeps the rover on the path the sim checked
+  without stopping at every cell.
+- What `SHORT`, `BLOCKED` and `LINK_LOST` do to fog and battery the sim already spent.
+- Whether an urgent call from the desk cancels the drive in progress.
 - Exactly when a stop counts as `SHORT` rather than `DONE`.
 - Which prototype the link joins (prototype 12 forks after 11).
+- The transport itself, until the team agrees gRPC.
