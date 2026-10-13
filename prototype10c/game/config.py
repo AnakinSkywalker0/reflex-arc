@@ -214,10 +214,16 @@ OBJECTIVES_30 = {
     (8, 20): ("2", "medium", 15),
     (2, 28): ("3", "low", 60),
 }
+# Six on the 50, so a multi-sol mission has work left after the first sol. The fourth
+# sits inside the C, reached only through its mouth on the east side; the other two fill
+# the empty north-west and south-east.
 OBJECTIVES_50 = {
     (40, 10): ("1", "high", 40),
     (14, 30): ("2", "medium", 15),
     (9, 42): ("3", "low", 60),
+    (36, 18): ("4", "high", 30),
+    (44, 44): ("5", "medium", 45),
+    (6, 4): ("6", "low", 20),
 }
 
 ARENAS = {"30": (FLATS_30, (15, 15), OBJECTIVES_30),

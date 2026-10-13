@@ -176,7 +176,7 @@ def draw_world(surf, w, f, reel=None):
         if ch == "H":
             _pad(surf, rect, lit)
         elif ch and ch in W.GLYPHS:       # a mark rides here with no tile of its own
-            _objective(surf, rect, ch, lit)
+            _objective(surf, rect, a.objectives[cell].priority, lit)
         if cell in a.marks:
             _x_mark(surf, rect)
 
@@ -224,14 +224,15 @@ def _reel(surf, reel, ox, oy):
         pygame.draw.line(surf, C.BUMP, box.topright, box.bottomleft, 2)
 
 
-def _objective(surf, rect, ch, lit):
+def _objective(surf, rect, priority, lit):
     """An instrument to be worked, drawn as a ring so the ground still shows through.
 
     Priority picks the hue and the three are the traffic-light order, which is the one
     ranking the environment is allowed to hand over -- it is a fact about the mission,
-    not a judgement about what to do first.
+    not a judgement about what to do first. Read off the objective, not its glyph: a
+    placed `4` is whatever priority it was given.
     """
-    col = {"1": C.BAD, "2": C.PLAN, "3": C.GOOD}.get(ch, C.INK)
+    col = {"high": C.BAD, "medium": C.PLAN, "low": C.GOOD}.get(priority, C.INK)
     if not lit:
         col = tuple(int(v * 0.55) for v in col)
     r = max(2, rect.width // 2 - 2)
@@ -368,7 +369,7 @@ def draw_map(surf, w, f, cursor):
                 pygame.draw.rect(surf, C.BASE, r)
             elif ch in W.GLYPHS:
                 pygame.draw.rect(surf, C.REGOLITH_DIM, r)
-                _objective(surf, r, ch, True)
+                _objective(surf, r, a.objectives[(x, y)].priority, True)
             else:
                 pygame.draw.rect(surf, C.WALKED if (x, y) in walked else C.REGOLITH_DIM, r)
             if (x, y) in a.storm_cells:

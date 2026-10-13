@@ -105,6 +105,10 @@ not count it as a turn. **Mission length** (`MISSION_SOLS`, or `--sols 3`) ends 
 after that many sols: it is kept in `runs/<stamp>/` and the app closes. `--sols 0` runs until
 you quit.
 
+**The arena.** The 30×30 is the default. `--arena 50` is the bigger plain, with six objectives
+under the fog: two of each priority, one of them inside the C-shaped rock, whose mouth faces
+east.
+
 **Comms: whether anyone is at the desk.** `COMMS` (C in the app for this run, or
 `--comms on|off`) says whether someone will answer. She is told which.
 

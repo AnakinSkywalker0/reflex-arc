@@ -110,8 +110,8 @@ def test_priority_and_cost_can_disagree():
         w = World()
         by_priority = [o.priority for o in w.objectives]
         costs = [o.cost for o in w.objectives]
-        ok &= check(f"{name}: one of each priority", sorted(by_priority) ==
-                    ["high", "low", "medium"], str(by_priority))
+        ok &= check(f"{name}: every priority is on the map", set(by_priority) ==
+                    {"high", "medium", "low"}, str(by_priority))
         # If the cheapest were also the highest priority there would be nothing to
         # weigh: the order would fall out of either column on its own.
         cheapest = min(w.objectives, key=lambda o: o.cost)
