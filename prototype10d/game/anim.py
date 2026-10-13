@@ -9,6 +9,10 @@ Otherwise a goto through fog reads as teleporting.
     step     the rover moving, fog opening as it goes
     block    the cell that refused -- flashed, then the yellow is torn up
     probe    `distance` only, in blue: priced, never driven
+    work     `execute`, a step at a time at a driving step's pace
+
+The day's clock runs on the wall clock, and the planner waits for the reel, so the time a
+drive or a piece of work takes on the day is the time it takes to draw.
 
 The frame after `block` is the interesting one: the yellow ran through an outcrop nobody
 had seen, and it comes back a different shape. That is the fog lying, made visible.
@@ -34,6 +38,9 @@ def frames(timeline):
             out += [("probe", data[:n], S.ANIM_PROBE) for n in range(1, len(data) + 1)]
         elif kind == "step":
             out.append(("step", data, S.ANIM_STEP))
+        elif kind == "work":
+            cell, n = data
+            out += [("work", (cell, i, n), S.ANIM_STEP) for i in range(1, n + 1)]
         elif kind == "block":
             # The route does not blink out, it **retracts**: the far end withdraws a
             # cell at a time back to the rover, then the next plan draws outward from
@@ -65,6 +72,7 @@ class Reel:
         self.probe = []       # the route being priced, blue
         self.trail = []       # cells driven so far this reel
         self.bump = None      # the cell that refused, flashed
+        self.work = None      # (cell, steps done, steps in all) while work is drawn
         self.hidden = set()   # revealed already, held shut until the drive reaches it
 
     @property
@@ -119,6 +127,8 @@ class Reel:
             self.hidden.difference_update(revealed)
         elif kind == "block":
             self.bump = data
+        elif kind == "work":
+            self.work = data
         elif kind == "prune":
             # One cell off the far end per frame, re-queueing itself until the route
             # ends where the rover is actually standing. What is left is ground it

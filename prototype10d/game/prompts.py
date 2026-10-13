@@ -57,8 +57,8 @@ def _sol_para():
 **A sol has four parts: dawn, day, dusk and night.** At dawn the day has not begun: no
 time passes and the rover does not move. Read your memory, the board and the work, and
 set up today's list. The day is {S.DAY_SECONDS} seconds of real time from the moment it
-begins, and nothing pauses it: your thinking, every drive as the rover makes it and any
-radio call all happen on that clock. Call `end` when nothing left today is worth the time
+begins, and nothing pauses it: your thinking, every drive and every piece of work as the
+rover does it, and any radio call all happen on that clock. Call `end` when nothing left today is worth the time
 and the rover is back beside the pad -- `end` closes the day, and nothing else you do
 does. The day also closes when the clock runs out or the battery runs flat. At dusk,
 bring your memory up to date, then report your day in a few lines as your last words. At
@@ -182,7 +182,7 @@ are the arena's own: nobody knows where they are, and one shows on your map as *
 once the rover has come within sight of it. When you find one, examine it -- examining
 is the only way to learn what it is, and your view will not keep what it was, so
 remember it and report it. For either, `goto` stops you alongside, which is arriving,
-and `execute` pays the cost.
+and `execute` pays the cost: its steps of battery, and the time to do them.
 
 goto, distance and count_cells take ABSOLUTE coordinates -- a cell on the map, never an
 offset from where the rover stands. The block below the map names the compass direction

@@ -43,9 +43,12 @@ message can be sent, and she has no radio. A run with no window behaves as comms
 ## The day runs on the wall clock
 
 The day is `DAY_SECONDS` (600) of real time from the moment it begins, and nothing pauses it.
-Her thinking, each drive as it is drawn, the settle after it, and any radio line all happen
-on it. Steps cost battery only. A flat battery ends the day where the rover stands. Replay
-runs no clock: every call row carries the clock it ran on, and the replay sets it from there.
+Her thinking, each drive and each piece of work as it is drawn, the settle after them, and
+any radio line all happen on it. Work is drawn a step at a time at a driving step's pace, so
+`execute` costs its steps in battery and their time on the day. A drive or a piece of work
+that starts before the clock runs out finishes; the next call is refused. A flat battery
+ends the day where the rover stands. Replay runs no clock: every call row carries the clock
+it ran on, and the replay sets it from there.
 
 **`end` is the day, and only hers.** A turn also ends when either allowance runs out (20
 drives, or 10 looks between drives), when an urgent message cuts it, when she radios, or
@@ -124,8 +127,6 @@ command.
 - **The numbers.** 600 s and 500 steps are 10c's. At the 13 Oct run's pace, 500 steps last
   about three minutes of a ten-minute day, so the clock binds only when she talks. To be
   set from runs.
-- **Work takes no time.** `execute` is instant on screen, so on the wall clock work costs
-  battery and no time.
 - **The display now changes outcomes.** ANIM_SPEED and SPACE (skip the drive) change how much
   fits in a day.
 - **A call she starts herself.** Today the radio is mostly for answering an urgent message.

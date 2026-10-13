@@ -220,6 +220,13 @@ def _reel(surf, reel, ox, oy):
     for cell in reel.probe:
         pygame.draw.circle(surf, C.PATH, _cell_rect(ox, oy, cell).center, r)
 
+    if reel.work:
+        cell, done, total = reel.work
+        box = _cell_rect(ox, oy, cell)
+        pygame.draw.rect(surf, C.PLAN, box.inflate(4, 4), 2)
+        bar = pygame.Rect(box.left, box.bottom + 2, max(1, box.width * done // total), 3)
+        pygame.draw.rect(surf, C.PLAN, bar)
+
     if reel.bump:
         box = _cell_rect(ox, oy, reel.bump)
         pygame.draw.rect(surf, C.BUMP, box, 2)
@@ -614,6 +621,9 @@ def draw_chat(surf, conv, w, f, line, focused, scroll, show_thinking=True, reel=
     # hang rather than the round trip it is.
     if conv.waiting and conv.link.hold:
         state, tone = f"checking whether {S.MODEL} is back...", C.CHAT_SKILL
+    elif reel and reel.work:
+        (x_, y_), done, total = reel.work
+        state, tone = f"working at ({x_},{y_})  ·  {done}/{total} steps", C.CHAT_SKILL
     elif conv.waiting or (reel and reel.busy and conv.busy):
         state, tone = "waiting for the rover...", C.CHAT_SKILL
     elif conv.busy:

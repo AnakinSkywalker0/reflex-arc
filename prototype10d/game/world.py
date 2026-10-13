@@ -747,10 +747,12 @@ class World:
         """Do the work at `o`, charging its cost. Returns the steps actually spent.
 
         Charged before the work is marked done, so a battery that runs out mid-task still
-        pays for what it used -- running out is not a refund.
+        pays for what it used -- running out is not a refund. Its time on the day is the
+        reel's: a step of work is drawn at a driving step's pace.
         """
         spent = min(o.cost, self.battery)
         self.spend(spent)
+        self.play([("work", (o.cell, spent))])
         if spent < o.cost:
             return spent                # ran out of battery; the work is not finished
         o.done = True

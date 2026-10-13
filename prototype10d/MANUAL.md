@@ -97,7 +97,7 @@ For running the mission and playing by hand. A leading `/` is fine.
 | M | the map of what she has seen |
 | O | settings, each saying when it applies |
 | Q | end the day now |
-| SPACE | skip the drive animation. It also saves day time, since the clock runs while drives are drawn |
+| SPACE | skip the drive or the work being drawn. It also saves day time, since the clock runs while they are |
 | WASD | drive by hand. Avoid it in a test: she isn't told |
 | ESC | quit: K keeps the run, D discards it, ESC goes back |
 
@@ -107,7 +107,7 @@ For running the mission and playing by hand. A leading `/` is fine.
 |---|---|---|---|
 | `goto(x, y)` | drive there, the whole way in one call | day | a step a tile |
 | `distance(x, y)` | what that drive would cost | any | nothing |
-| `execute()` | do the work at the objective or interest she is beside | day | its cost in steps |
+| `execute()` | do the work at the objective or interest she is beside | day | its cost in steps, and the time to do them |
 | `count(kind)` | every rock formation or fog patch, with size and middle | any | nothing |
 | `count_cells(x, y)` | the exact cells of one formation | any | nothing |
 | `todo(text)`, `strike(n)` | add to and cross off today's list | any | nothing |
@@ -142,7 +142,8 @@ She is told to keep her memory lean:
 - **Day:** the phase that works. 600 seconds of wall clock from the moment it begins, which
   nothing pauses.
 - **Battery:** 500 steps. A tile driven, a step of work or a radio message costs from it.
-  Only the pad recharges it, overnight. A flat battery ends the day.
+  Only the pad recharges it, overnight. A flat battery ends the day. Driving and work also
+  take time: each is drawn a step at a time while the clock runs.
 - **Beside the pad (docked):** next to any side of the landing pad, where she recharges.
 - **Stranded:** the day ended away from the pad, so there is no recharge.
 - **Lost:** less charge than the shortest trip home. The mission ends.

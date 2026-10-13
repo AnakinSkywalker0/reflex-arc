@@ -172,7 +172,8 @@ TOOLS = [
             "Do the work at the objective or interest the rover is standing next to. "
             "Drive to it first -- goto puts you alongside it, which is arriving -- then "
             "call this. It costs that work's own number of steps, listed with it in "
-            "your view, and the work is finished and gone once it is paid. An interest "
+            "your view: that much battery, and the day's time to do them one by one. "
+            "The work is finished and gone once it is paid. An interest "
             "tells you what it is when you examine it, and only then. Standing anywhere "
             "else this does nothing and costs nothing."),
         "parameters": {"type": "object", "properties": {

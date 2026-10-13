@@ -246,6 +246,31 @@ def test_turning_it_off_records_nothing():
     return ok
 
 
+def test_work_takes_time_on_screen_like_driving():
+    """The day's clock is the wall clock, so work is drawn a step at a time: that is
+    what makes `execute` cost the day as well as the battery."""
+    print("work is drawn, step by step")
+    w = World()
+    i = w.interests[0]
+    w.pos = (i.cell[0], i.cell[1] + 1)
+    w.execute(i)
+    ok = check("examining queues a reel of its own", len(w.reel) == 1
+               and kinds(w.reel[0]) == ["work"], str(w.reel))
+    frames = anim.frames(w.reel[0])
+    ok &= check("one frame a step of work", len(frames) == i.cost
+                and frames[-1][1] == (i.cell, i.cost, i.cost), str(frames[-1]))
+    reel = anim.Reel(w)
+    reel.tick(1 / 60)
+    ok &= check("while it plays, the reel is busy and shows the progress",
+                reel.busy and reel.work and reel.work[0] == i.cell)
+    drawn = play(reel) / 60
+    step = S.ANIM_STEP / S.ANIM_SPEED
+    ok &= check("and it takes a driving step's time per step of work, to within one",
+                abs(drawn - i.cost * step) <= step + 0.05, f"{drawn:.2f}s for {i.cost} steps")
+    ok &= check("then it clears", not reel.busy and reel.work is None)
+    return ok
+
+
 def test_the_queue_cannot_grow_forever():
     print("headless, nobody watching")
     w = World()
@@ -264,6 +289,7 @@ if __name__ == "__main__":
                test_skipping_lands_exactly_where_the_world_already_is(),
                test_a_long_stall_catches_up_rather_than_crawling(),
                test_turning_it_off_records_nothing(),
+               test_work_takes_time_on_screen_like_driving(),
                test_the_queue_cannot_grow_forever()]
     print(f"\n{sum(results)}/{len(results)} groups passed")
     sys.exit(0 if all(results) else 1)
