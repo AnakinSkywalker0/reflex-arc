@@ -244,6 +244,7 @@ def test_the_view_says_how_far_home_is():
     w = World()
     ok = check("at the landing site it says the rover is home",
                "You are beside the pad" in sight.view(w))
+    ok &= check("and that charge left tonight goes unused", "goes unused" in sight.view(w))
     w.pos = (15, 10)
     v = sight.view(w)
     ok &= check("five rows north, it says the pad is at least five steps off",

@@ -177,6 +177,23 @@ def test_a_sol_runs_its_four_phases_by_itself():
     return ok
 
 
+def test_the_mission_stands_whatever_the_board_says():
+    """14 Oct: once any order was posted the day's opening said only "carry out your
+    orders", the orders were conditions, and she went home with half her battery."""
+    print("orders and the mission")
+    w = World()
+    ok = check("with no orders, the day says to explore", "explore" in autopilot.begin(w))
+    w.notes.order("return at about 100 battery")
+    text = autopilot.begin(w)
+    ok &= check("with orders, it says to carry them out and explore with what they leave",
+                "orders" in text and "explore" in text and "whatever battery" in text, text)
+    ok &= check("dawn says what works now and what waits for the day",
+                "goto and execute are refused until the day begins" in autopilot.dawn(w))
+    ok &= check("and the prompt says unspent charge is never used",
+                "is never used" in prompts.SYSTEM)
+    return ok
+
+
 def test_dawn_drives_nothing_and_costs_no_time():
     print("dawn")
     w = World()
@@ -655,7 +672,8 @@ def test_a_two_sol_run_replays_exactly():
     keep = S.MOVE_HOPS, S.COMMS
     S.MOVE_HOPS, S.COMMS = 2, True
     try:
-        replies = [("", [call("todo", text="north first")]), READY,
+        replies = [("", [call("todo", text="north first"), call("todo", text="then east"),
+                         call("remember", name="plan", text="north, then east")]), READY,
                    ("", [call("goto", x=15, y=10)]), ("", [call("goto", x=20, y=10)]),
                    ("", [call("radio", text="anything I should know?")]),
                    ("", [call("distance", x=2, y=2)]),
@@ -750,6 +768,7 @@ def test_a_replay_runs_on_the_tapes_clock():
 
 if __name__ == "__main__":
     results = [test_a_sol_runs_its_four_phases_by_itself(),
+               test_the_mission_stands_whatever_the_board_says(),
                test_dawn_drives_nothing_and_costs_no_time(),
                test_the_day_runs_on_the_wall_clock_and_ends_when_it_runs_out(),
                test_a_flat_battery_ends_the_day(),

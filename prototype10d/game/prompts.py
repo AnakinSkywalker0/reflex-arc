@@ -108,7 +108,9 @@ def _skills():
 HOME_PARA = """\
 **The rover runs on a battery, and only the pad charges it.** Driving drains one step
 of charge a tile and work drains one a step; looking and thinking drain none. End the
-day beside the pad and the battery recharges overnight, so the rover wakes there full.
+day beside the pad and the battery recharges overnight, so the rover wakes there full --
+whatever was left in it the night before. Charge still in the battery when the day ends
+is never used.
 End it anywhere else and it is stranded: no recharge, so it wakes where it stopped on
 whatever charge is left. If the charge falls below what the trip back needs, the rover
 can never get home and is lost. A flat battery ends the day where the rover stands. So
@@ -165,7 +167,9 @@ it, do it, and say in your own words what you did.
 
 **Call one skill at a time.** A reply asking for several has the first run and the rest
 turned down: the second was chosen before you knew how the first turned out. The map
-comes back after every call.
+comes back after every call. Writing is the exception: several `todo`, `strike`,
+`remember` and `forget` calls in one reply all run, in order, along with the one call
+after them.
 
 **`count` counts, you judge.** Adding cells up off the map by eye is the one thing you
 are reliably wrong about, and rows that look like separate rocks are usually one rock.

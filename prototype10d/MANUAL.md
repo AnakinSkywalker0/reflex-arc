@@ -117,7 +117,8 @@ For running the mission and playing by hand. A leading `/` is fine.
 | `end()` | end the day | day | nothing |
 
 Each turn allows 20 drives, and 10 looks between drives. Reaching either ends the turn, and
-the next one starts with both back.
+the next one starts with both back. One call per reply, except that several writes
+(`todo`, `strike`, `remember`, `forget`) all run, with the one call after them.
 
 ## What is written down
 
@@ -161,6 +162,18 @@ She is told to keep her memory lean:
 - **Memory:** her named entries, the only thing of hers that survives the night.
 - **Fallback:** if the cloud model drops, the local `gemma4:e4b` answers until it is back.
 - **Replay / resume:** play a kept run again exactly, or carry it on from its next sol.
+
+## Scoring a run
+
+```bash
+.venv/bin/python game/score.py runs/<stamp> [runs/<stamp> ...]
+```
+
+A row per sol: battery used and left, radio spending, day seconds used, cells mapped, work
+done, interests found and whether they reached her report and memory, list items and how
+many copy an objective, memory size, refused calls, and how the day ended. The orders
+standing each sol are listed under it, for you to judge. Several runs also get their
+totals side by side.
 
 ## A run directory
 

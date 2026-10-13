@@ -55,6 +55,19 @@ drives, or 10 looks between drives), when an urgent message cuts it, when she ra
 when she replies with no call in it. Each time, the clock opens the next turn with both
 allowances back. She never calls `end` for a cap.
 
+**One call per reply, apart from writes.** Several `todo`, `strike`, `remember` and
+`forget` calls in one reply all run, in order, with the one call after them. Anything
+later is refused, because it was chosen before an outcome it depends on. In the 14 Oct run
+the old rule refused her fourth `todo` at two dawns, and both times it was the item to
+explore.
+
+**The mission stands whatever the board says.** The day opens with her orders and, with
+whatever battery and time they leave, the standing mission: explore, examine interests,
+do the objectives worth the steps. In the 14 Oct run the opening said only "carry out
+your orders" once any were posted. The orders were conditions, not a job, and she went
+home each day with a third to a half of her battery. Her prompt and view also state that
+charge left at the end of the day is never used, since the pad charges to full.
+
 ## The desk by day
 
 **One urgent message.** By day, anything typed in her chat is the urgent message: words, or
@@ -120,6 +133,9 @@ command.
   her memory and her dusk report? `report.md` has the truth beside her words.
 - **By day, send one urgent message that asks a question,** and see whether she answers by
   radio.
+- **Score every run** with `.venv/bin/python game/score.py runs/<stamp>`. Give it several
+  run directories to compare them side by side. `runs/20261014-021552` is the first 31B
+  run, before the prompt changes.
 - **Report each result with its n,** and with its run directory.
 
 ## Not decided, and not in 10d

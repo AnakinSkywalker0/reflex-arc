@@ -113,7 +113,8 @@ def home(w):
                    "was not recharged.")
     if w.docked:
         out.append("You are beside the pad. End the day here and the battery recharges "
-                   "overnight: tomorrow starts full, from the pad.")
+                   "overnight: tomorrow starts full, from the pad, and whatever charge is "
+                   "left tonight goes unused.")
         return out
     if w.lost:
         out.append(f"The rover is lost: the battery holds {w.battery} steps, less than "

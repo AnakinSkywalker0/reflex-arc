@@ -52,15 +52,23 @@ def dawn(world, words="", placed=()):
             if S.COMMS else " Nobody is at mission control's desk.")
     return (f"Dawn of sol {world.day}. The day has not begun: no time passes and the rover "
             f"does not move until it does.{stuck}{new} Read your memory, the board and the "
-            f"work in your view, and set up today's list.{desk}" + _desk_line(words))
+            f"work in your view, and set up today's list. Your list, your memory, distance "
+            f"and count all work now; goto and execute are refused until the day begins."
+            f"{desk}" + _desk_line(words))
+
+
+EXPLORE = ("explore: drive into ground you have not seen, examine the interests you find, "
+           "do the objectives worth the steps, and work out which rock formation is the "
+           "largest.")
 
 
 def begin(world, words=""):
-    """The turn that opens the day, and starts its clock."""
-    job = ("Carry out your orders from mission control." if world.notes.orders else
-           "You have no orders, so explore: drive into ground you have not seen, examine "
-           "the interests you find, do the objectives worth the steps, and work out which "
-           "rock formation is the largest.")
+    """The turn that opens the day, and starts its clock. The mission stands whatever
+    the board says: the 14 Oct run's orders were conditions, not a job, and replacing the
+    mission with them left her nothing to do once the objectives were done."""
+    job = (f"Carry out your orders from mission control, and with whatever battery and time "
+           f"they leave, {EXPLORE}" if world.notes.orders else
+           f"You have no orders, so {EXPLORE}")
     return (f"Sol {world.day} has begun. The clock runs from now: {world.time_left:.0f} "
             f"seconds, and nothing stops it. {job} Be back beside the pad before you call "
             f"end; end closes the day." + _desk_line(words))

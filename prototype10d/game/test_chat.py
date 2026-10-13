@@ -308,6 +308,32 @@ def test_only_one_call_of_a_batch_ever_runs():
     ok &= check("every call asked for still has an answer", asked == answered,
                 f"{asked} asked, {answered} answered")
     ok &= check("and the turn carried on afterwards", len(sent) == 2, f"{len(sent)} sent")
+
+    # Writes are the exception: four todos at dawn lost the fourth, twice, on 14 Oct.
+    w = World()
+    todo = [{"name": "todo", "arguments": {"text": f"item {i}"}} for i in range(4)]
+    drive = [{"name": "goto", "arguments": {"x": 15, "y": 10 + i}} for i in range(2)]
+    c, sent = rig(w, [("", todo + drive), ("Done.", [])])
+    c.open_day(w)
+    c.send("plan, then go")
+    c.pump()
+    ran = [x.name for x in c.calls]
+    ok &= check("a run of writes goes through, with the one call after it",
+                ran == ["todo"] * 4 + ["goto"], str(ran))
+    ok &= check("in order", [t for t, _ in w.notes.todos] == [f"item {i}" for i in range(4)])
+    ok &= check("and the call after that is still refused", sum(
+        1 for m in c.messages if m["role"] == "tool" and "one call at a time" in m["content"])
+        == 1)
+    ok &= check("every call still has an answer",
+                sum(len(m["tool_calls"]) for m in c.messages if m.get("tool_calls"))
+                == sum(1 for m in c.messages if m["role"] == "tool"))
+    w = World()
+    c, _ = rig(w, [("", [drive[0], todo[0]]), ("Done.", [])])
+    c.open_day(w)
+    c.send("go, then plan")
+    c.pump()
+    ok &= check("a write chosen after a drive waits for the drive's outcome",
+                [x.name for x in c.calls] == ["goto"] and not w.notes.todos)
     return ok
 
 

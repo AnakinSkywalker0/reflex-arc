@@ -29,6 +29,10 @@ import skills
 import prompts
 from sight import status_line   # one wording for the morning and the view
 
+# Calls that only write her own notes. Several in one reply all run: nothing they change
+# is something a later call was chosen against.
+WRITES = ("todo", "strike", "remember", "forget")
+
 
 WHO = ("status", "you", "brief", "urgent", "auto", "gemma", "think", "error", "note",
        "view", "call", "result")
@@ -601,61 +605,77 @@ class Conversation:
         self._next()
 
     def _run(self, wanted):
-        """Run one call, refuse any others, and decide whether the turn goes on.
+        """Run the calls one reply may make, refuse the rest, and decide whether the turn
+        goes on.
 
         This is on the main thread: `pump()` is called once a frame from the game loop,
         so a drive that moves the rover cannot land halfway through a redraw.
 
-        **One call per request, always.** Watched 2026-09-04: the 31B asked for four to
-        six drives in a single reply, and every one after the first had been chosen
+        **One call per request, apart from writes.** Watched 2026-09-04: the 31B asked for
+        four to six drives in a single reply, and every one after the first had been chosen
         before any of their outcomes were known -- aimed at a map several drives out of
-        date, which is where its BLOCKED results came from. It got one view per batch
-        instead of one per drive. Running the extras would carry out decisions it had no
-        way to make well, so they are turned down and it gets the map back instead.
+        date, which is where its BLOCKED results came from. Running the extras would carry
+        out decisions it had no way to make well, so they are turned down and it gets the
+        map back instead.
 
-        By day she drives until she calls `end`; the two allowances below end a turn
-        that never would, and the clock opens the next.
+        By day she drives until she calls `end`; the two allowances end a turn that never
+        would, and the clock opens the next.
         """
-        first, extra = wanted[0], wanted[1:]
+        # Writes change nothing a later call is chosen against, so a run of them goes
+        # through, in order, with the first call after them. The 14 Oct run lost "explore
+        # south and east" two dawns running to a refused fourth `todo`.
+        n = next((i for i, fn in enumerate(wanted)
+                  if (fn.get("name") or "").strip() not in WRITES), len(wanted) - 1)
+        run, extra = wanted[:n + 1], wanted[n + 1:]
+        on = True
+        for i, fn in enumerate(run):
+            on = self._one(fn)
+            if not on:
+                extra = run[i + 1:] + extra
+                break
         if extra:
-            self._refuse(extra, "REFUSED -- one call at a time. This one did not run "
-                                "and nothing happened. You get the map back after the "
-                                "call that did run; decide again then.")
-        name = (first.get("name") or "").strip()
+            self._refuse(extra, "REFUSED -- one call at a time, apart from writes to your "
+                                "list and memory. This one did not run and nothing "
+                                "happened. You get the map back after the call that did "
+                                "run; decide again then.")
+        if on:
+            self._next()
+
+    def _one(self, fn):
+        """Run one call. Returns whether the turn has room for another."""
+        name = (fn.get("name") or "").strip()
         if name in skills.NAMES and name not in self._allowed():
             # Counted as a look, so a model that keeps asking to drive at dawn still
             # reaches the cap that ends its turn.
-            self._refuse([first], self._not_now(name))
+            self._refuse([fn], self._not_now(name))
             self.frees += 1
-            self._capped_or_next()
-            return
+            return self._room()
         if name == "end":
-            self._answer(first, move=False, counts=False)
+            self._answer(fn, move=False, counts=False)
             self._stop("she called end")
-            return
+            return False
         if name == "radio":
             # A call that got through ends her turn: the desk answers, or does not.
-            self._answer(first, move=False, counts=False)
+            self._answer(fn, move=False, counts=False)
             if skills.got_through(self.calls[-1]):
                 self._stop("she radioed mission control")
-            else:
-                self._next()
-            return
-
+                return False
+            return True
         # What spends steps, not what changes position: a piece of work costs the day
         # even though it leaves the rover where it stands.
-        self._answer(first, move=name in ("goto", "execute"))
-        self._capped_or_next()
+        self._answer(fn, move=name in ("goto", "execute"))
+        return self._room()
 
-    def _capped_or_next(self):
+    def _room(self):
         """Either allowance used up ends the turn by itself; by day the clock opens the
         next one with both back. She never calls `end` for a cap -- `end` is the day."""
         if self.moves >= S.MOVE_HOPS:
             self._stop(f"{S.MOVE_HOPS} drives this turn")
-        elif self.frees >= S.FREE_HOPS:
+            return False
+        if self.frees >= S.FREE_HOPS:
             self._stop(f"{S.FREE_HOPS} looks without a drive")
-        else:
-            self._next()
+            return False
+        return True
 
     def _stop(self, why):
         """The turn is over. The *turn* -- the sol runs until the steps do.

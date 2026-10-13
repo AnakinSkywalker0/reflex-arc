@@ -118,6 +118,9 @@ SIGTERM keeps the run and exits, and a run with no window (`SDL_VIDEODRIVER=dumm
 `runs/<stamp>-headless/`. A run with no window never waits for the desk and starts with comms
 off.
 
+**Scoring a run.** `.venv/bin/python game/score.py runs/<stamp>` prints a row per sol from
+the run's own logs, and several run directories are compared side by side.
+
 **Resuming and replaying.**
 
 ```bash
