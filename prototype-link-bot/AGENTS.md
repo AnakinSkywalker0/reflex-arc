@@ -56,6 +56,8 @@ Hold to the project's rules while doing it:
   [`long-distance.md`](long-distance.md) and comes after the one-room link works. Cell size, the cell-to-map
   origin and the exact `.proto` messages are still undecided. Ask; don't pick one silently and
   write it up as settled.
+- **A no-ROS LiDAR plan is proposed** in [`lidar.md`](lidar.md). Until the team agrees it, don't
+  remove or change the ROS stack because of it.
 
 ## Writing docs and commits
 

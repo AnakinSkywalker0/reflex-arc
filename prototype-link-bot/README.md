@@ -33,6 +33,7 @@ prototype-link-bot/
   CLAUDE.md            the same, for Claude
   grpc-link.md         the planned link to the brain, in one room
   long-distance.md     running that link far apart, and the methods for it
+  lidar.md             the LiDAR without ROS: where the rover really is after each leg
   can_do.md            tidy-ups to do after the demo, not before
   rover/
     rover              the command you type on the Pi: ~/rover start, map, nav, stop ...
@@ -149,6 +150,10 @@ way to notice them. This stack replaces that with closed-loop driving on the LiD
 [`grpc-link.md`](grpc-link.md) — why, the commands, safety and the build steps. Running it far
 apart (Tailscale, 4G, and later the brain on the rover) is in
 [`long-distance.md`](long-distance.md).
+
+**A simpler rover side is proposed** in [`lidar.md`](lidar.md): no ROS. Plain Python reads the
+LD19, matches each stop's scan against scans of the arena taken at setup, and reports the real
+cell. It is not agreed yet; the ROS stack stays here until it is.
 
 **Not decided yet:**
 
