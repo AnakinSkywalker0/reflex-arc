@@ -455,6 +455,58 @@ def test_every_dialect_of_a_written_call_is_recovered():
     return ok
 
 
+def test_a_typed_write_is_read_in_its_own_argument_order():
+    """14 Oct team run: three replies typed their list writes as `todo("...", "why")`.
+    Recovery read every unnamed argument as goto's x, y and why, and detection wanted a
+    digit in the brackets, so seven writes -- her plan made at night among them -- were
+    dropped without a word."""
+    print("a typed write, read as it was meant")
+    ok = True
+    for text, want in [
+        ('todo("Explore north of the pad", "Initial mapping")',
+         [("todo", {"text": "Explore north of the pad", "why": "Initial mapping"})]),
+        ('strike(2, "done")', [("strike", {"n": "2", "why": "done"})]),
+        ('remember("plan", "north first, then the C")',
+         [("remember", {"name": "plan", "text": "north first, then the C"})]),
+        ('forget("plan")', [("forget", {"name": "plan"})]),
+        ('remember(name="plan", "north first")',
+         [("remember", {"name": "plan", "text": "north first"})]),
+        # Coordinates in the text are brackets of its own.
+        ('todo("Execute high priority objective at (27,42)")',
+         [("todo", {"text": "Execute high priority objective at (27,42)"})]),
+        # A skill named inside the text is part of the text.
+        ('todo("goto(10, 5) first")', [("todo", {"text": "goto(10, 5) first"})]),
+        # An apostrophe in the brace dialect is a word, not a quote.
+        ("call:goto{why:the rover's path,x:49,y:0}",
+         [("goto", {"why": "the rover's path", "x": "49", "y": "0"})]),
+    ]:
+        got = skills.written_calls(text)
+        ok &= check(f"read: {text[:40]}", got == want, str(got))
+        ok &= check(f"...and seen as one: {text[:30]}", skills.looks_like_a_call(text))
+
+    # Words have to be quoted to be read: unquoted, they are a sentence. A `radio` read
+    # out of one would cost battery and end her turn.
+    for text in ("I will radio (if needed)", "I'll forget (the old plan) for now",
+                 "a todo (for later)", "remember (the C)"):
+        ok &= check(f"prose left alone: {text[:34]}",
+                    not skills.written_calls(text) and not skills.looks_like_a_call(text),
+                    str(skills.written_calls(text)))
+
+    # Her night's reply from that run, verbatim: all three, in order.
+    night = ('Since Order 1 has been removed, I am free to explore the rest of the Jezero '
+             'flats.\n\ntodo("Explore north of the pad", "General mapping")\n'
+             'todo("Explore east of the pad", "General mapping")\n'
+             'todo("Identify the largest rock formation", "Mission goal")')
+    got = skills.written_calls(night)
+    ok &= check("a run of typed writes is read whole, in order",
+                [a.get("text") for _, a in got] == [
+                    "Explore north of the pad", "Explore east of the pad",
+                    "Identify the largest rock formation"], str(got))
+    ok &= check("and written_call is still the first of them",
+                skills.written_call(night) == got[0])
+    return ok
+
+
 def test_the_schema_matches_what_is_wired_up():
     print("the schema is honest")
     names = {t["function"]["name"] for t in skills.TOOLS}
@@ -533,6 +585,7 @@ if __name__ == "__main__":
                test_counting_only_ever_counts_what_she_has_seen(),
                test_a_formation_keeps_its_name_as_it_comes_out_of_the_fog(),
                test_every_dialect_of_a_written_call_is_recovered(),
+               test_a_typed_write_is_read_in_its_own_argument_order(),
                test_the_schema_matches_what_is_wired_up(),
                test_the_way_home_is_warned_about_in_time()]
     print(f"\n{sum(results)}/{len(results)} groups passed")

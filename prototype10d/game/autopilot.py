@@ -9,7 +9,8 @@
            can call the desk with `radio`, from anywhere, at a cost in battery.
     dusk   the day is over. She brings her memory up to date, and her last words are her
            report. The desk reads it.
-    night  the desk may talk freely. Then the next sol's dawn.
+    night  her list is cleared as it begins, so what she puts on it now is tomorrow's.
+           The desk may talk freely. Then the next sol's dawn.
 
 **Every phase but the day ends the same way.** With someone at the desk (`COMMS`, and a
 window on the app) it waits COMMS_WAIT after the last thing typed or said, or for /next.
@@ -50,11 +51,12 @@ def dawn(world, words="", placed=()):
            f"view." if placed else "")
     desk = (" Mission control is at the desk and may talk with you before the day begins."
             if S.COMMS else " Nobody is at mission control's desk.")
+    kept = " It holds what you put on it last night." if world.notes.todos else ""
     return (f"Dawn of sol {world.day}. The day has not begun: no time passes and the rover "
             f"does not move until it does.{stuck}{new} Read your memory, the board and the "
-            f"work in your view, and set up today's list. Your list, your memory, distance "
-            f"and count all work now; goto and execute are refused until the day begins."
-            f"{desk}" + _desk_line(words))
+            f"work in your view, and set up today's list.{kept} Your list, your memory, "
+            f"distance and count all work now; goto and execute are refused until the day "
+            f"begins.{desk}" + _desk_line(words))
 
 
 EXPLORE = ("explore: drive into ground you have not seen, examine the interests you find, "
@@ -81,8 +83,8 @@ def carry_on(world, after_line=False, words=""):
             "unanswered": "Nobody answered the radio. "}.get(after_line, "")
     return (f"{back}The day goes on with a new turn and both allowances back: "
             f"{world.time_left:.0f} seconds and {world.battery} steps of battery are "
-            f"left. Carry on, or call end if nothing left today is worth them; that "
-            f"closes the day." + _desk_line(words))
+            f"left. Carry on until the battery is down to the trip home or the clock is "
+            f"nearly out; end closes the day." + _desk_line(words))
 
 
 def desk(on):
@@ -97,9 +99,9 @@ def desk(on):
 
 KEEP = ("First bring your memory up to date: remember what tomorrow needs -- what you "
         "found, what you left and why, what to do first, any constraint still standing -- "
-        "carry over from today's list whatever still matters, and forget what is no "
-        "longer true. What was finished and what was mapped carry themselves; what an "
-        "interest turned out to be does not.")
+        "carry over from today's list whatever still matters, since the list is cleared "
+        "when dusk ends, and forget what is no longer true. What was finished and what "
+        "was mapped carry themselves; what an interest turned out to be does not.")
 
 REPORT = ("Then, as your last words, report your day to mission control in a few lines: "
           "what you did, what you found, and what is still worth doing and why. No call "
@@ -265,6 +267,11 @@ class Autopilot:
     def _enter(self, world, phase):
         self.phase, world.phase, self.started = phase, phase, False
         world.record("phase", phase=phase)
+        # Dusk is over, so today's list goes. A replay clears it from this row on the
+        # tape instead (`replay.apply`): it re-issues a sol's calls before it walks the
+        # phases, so clearing here would wipe a list it had rebuilt from the night's.
+        if phase == "night" and self.live:
+            world.evening()
 
     def _over(self, conv, world):
         """Why the day is over, or None if it is not."""

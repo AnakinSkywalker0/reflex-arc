@@ -559,11 +559,14 @@ class Conversation:
         # Recovery happens before `_settle`, which is what appends the assistant turn:
         # the call must be in `wanted` by then or its result dangles off no message.
         if not wanted and not self.ended:
-            got = skills.written_call(said)
+            got = skills.written_calls(said)
             if got:
-                wanted = [{"name": got[0], "arguments": got[1]}]
-                self.recovered += 1
-                self.write("error", "call was typed out, not made -- running it anyway")
+                wanted = [{"name": name, "arguments": args} for name, args in got]
+                self.recovered += len(got)
+                self.write("error", "call was typed out, not made -- running it anyway"
+                           if len(got) == 1 else
+                           f"{len(got)} calls were typed out, not made -- running them "
+                           f"as if made")
 
         self._settle(wanted, said, junk)
         # Words spoken on an open line go over the radio, and the radio costs battery.

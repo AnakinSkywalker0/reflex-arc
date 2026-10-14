@@ -617,6 +617,17 @@ def test_the_cloud_drops_for_a_sol_and_comes_back():
 
 
 # --- replay ------------------------------------------------------------------------
+def recorder(log):
+    """`World.recorder` writing a game log a `replay.Script` can read."""
+    def write(kind, **f):
+        log.write(json.dumps({"t": round(time.time(), 3), "kind": kind, **f},
+                             default=str) + "\n")
+        log.flush()
+        if kind in replay.OPS:
+            time.sleep(0.002)      # an op and the call after it never share a stamp
+    return write
+
+
 def live_then_replay(replies, sols=1, objectives="manual"):
     """A live run with nobody at the window, kept to a tape and a game log, then replayed
     from them. Returns (live world, live calls, replay world, replays, replayed calls)."""
@@ -640,15 +651,6 @@ def live_then_replay(replies, sols=1, objectives="manual"):
                 convs[-1].open_day(w)
                 pilot = autopilot.Autopilot(live=live)
         return convs
-
-    def recorder(log):
-        def write(kind, **f):
-            log.write(json.dumps({"t": round(time.time(), 3), "kind": kind, **f},
-                                 default=str) + "\n")
-            log.flush()
-            if kind in replay.OPS:
-                time.sleep(0.002)      # an op and the call after it never share a stamp
-        return write
 
     try:
         with tempfile.TemporaryDirectory() as d:
@@ -700,6 +702,56 @@ def test_a_two_sol_run_replays_exactly():
                 f"{(w2.pos, w2.battery)} {(w.pos, w.battery)}")
     ok &= check("with the same objectives on the map",
                 sorted(o.cell for o in w2.objectives) == sorted(o.cell for o in w.objectives))
+    return ok
+
+
+def test_a_list_made_at_night_wakes_with_her_and_replays():
+    """Dusk's end clears the day's list, and what she writes at night is the next
+    day's. A replay re-issues the whole sol before it walks the phases, so it clears
+    the list from the tape's row for the night beginning instead."""
+    print("a plan made at night, live and on replay")
+    model = Model([READY, ("", [call("todo", text="explore south")]), END,
+                   ("", [call("remember", name="n", text="south done")]), REPORT,
+                   ("North first, then.", [call("todo", text="explore north")]),
+                   ("Good night.", [])])
+    with Desk(sols=2), tempfile.TemporaryDirectory() as d:
+        tape = chat.Tape(Path(d) / "chat.jsonl")
+        with (Path(d) / "game.jsonl").open("w") as log:
+            w = World(recorder=recorder(log))
+            c = model.talk(chat.Conversation(w, tape))
+            c.open_day(w)
+            pilot = autopilot.Autopilot(attended=True)
+            t, _ = until(c, pilot, w, lambda got: pilot.wait == "dawn")
+            pilot.next()
+            t, _ = until(c, pilot, w, lambda got: pilot.wait == "dusk", start=t + 1)
+            ok = check("at dusk the day's list is still there",
+                       w.notes.todos == [["explore south", False]], str(w.notes.todos))
+            pilot.next()
+            t, _ = until(c, pilot, w, lambda got: pilot.wait == "night", start=t + 1)
+            ok &= check("dusk over, it is gone", w.notes.todos == [], str(w.notes.todos))
+            pilot.say(c, w, "take the north tomorrow")
+            t, _ = until(c, pilot, w, lambda got: w.notes.todos and not c.busy,
+                         start=t + 1)
+            pilot.next()
+            t, got = until(c, pilot, w, lambda got: got == "night", start=t + 1)
+            w.next_day()
+        tape.close()
+        ok &= check("what she wrote at night is her list at dawn",
+                    w.notes.todos == [["explore north", False]], str(w.notes.todos))
+        ok &= check("and the dawn says so",
+                    "It holds what you put on it last night." in autopilot.dawn(w))
+
+        script = replay.Script(Path(d))
+        w2 = World()
+        r = replay.Replay(w2, script)
+        r.open_day(w2)
+        until(r, autopilot.Autopilot(live=False), w2,
+              lambda got: got == "night" or r.diverged, frames=80)
+        script.operator(w2, w2.day)
+        w2.next_day()
+    ok &= check("the replay never diverged", not r.diverged, str(r.diverged))
+    ok &= check("and woke with the same list", w2.notes.todos == w.notes.todos,
+                str(w2.notes.todos))
     return ok
 
 
@@ -787,6 +839,7 @@ if __name__ == "__main__":
                test_the_cloud_drops_for_a_sol_and_comes_back(),
                test_a_two_sol_run_replays_exactly(),
                test_a_replay_of_an_urgent_message_matches(),
+               test_a_list_made_at_night_wakes_with_her_and_replays(),
                test_a_replay_runs_on_the_tapes_clock()]
     print(f"\n{sum(results)}/{len(results)} groups passed")
     sys.exit(0 if all(results) else 1)

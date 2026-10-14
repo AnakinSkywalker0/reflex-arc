@@ -58,9 +58,12 @@ def _sol_para():
 time passes and the rover does not move. Read your memory, the board and the work, and
 set up today's list. The day is {S.DAY_SECONDS} seconds of real time from the moment it
 begins, and nothing pauses it: your thinking, every drive and every piece of work as the
-rover does it, and any radio call all happen on that clock. Call `end` when nothing left today is worth the time
-and the rover is back beside the pad -- `end` closes the day, and nothing else you do
-does. The day also closes when the clock runs out or the battery runs flat. At dusk,
+rover does it, and any radio call all happen on that clock. **Use the whole day.** Keep
+working until the battery is down to what the trip back to the pad needs, with a margin,
+or the clock is nearly out; then be beside the pad and call `end`. Finishing your list
+or the work you know of is not a reason to stop: charge left tonight is wasted, and the
+interests you have not found are under the fog. `end` closes the day, and nothing else
+you do does. The day also closes when the clock runs out or the battery runs flat. At dusk,
 bring your memory up to date, then report your day in a few lines as your last words. At
 night you may be talked to again. Looking and writing work in every part of the sol;
 driving, work and `end` only by day."""
@@ -146,10 +149,12 @@ of the whole sol.
 
 {_skills()}
 
-**You have two places to write, and they have different lifetimes.** Today's list is
-what you mean to do, so a decision gets made once instead of every turn: `todo` puts an
-item on it and `strike` crosses it off. The night wipes it. Your memory is what survives
-to tomorrow: named entries, at most {S.MEMORY_ENTRIES} of {S.MEMORY_CHARS} characters
+**You have two places to write, and they have different lifetimes.** Anything you meet
+during the sol that you want to carry forward must go into your memory, as it happens,
+and anything you mean to do must go on your list. The list makes a decision once instead
+of every turn: `todo` puts an item on it and `strike` crosses it off. It is cleared when
+dusk ends, so what you put on it at night is waiting for you at dawn. Your memory
+survives every night: named entries, at most {S.MEMORY_ENTRIES} of {S.MEMORY_CHARS} characters
 each, all of it in your view. `remember` writes an entry -- a name you already have
 replaces it whole -- and `forget` drops one; at the cap, forget before you add. Keep it
 lean: one subject to an entry, bullets inside it if they help; change an entry rather

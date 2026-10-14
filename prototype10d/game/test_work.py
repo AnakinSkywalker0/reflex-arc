@@ -259,10 +259,51 @@ def test_interests_cannot_be_placed_where_work_cannot_happen():
     return ok
 
 
+def test_done_is_not_the_end_of_the_day():
+    """All five sols of the two 14 Oct runs ended on "Nothing else you know of is left
+    to do" or "Nothing is left open on your list", then the drive home, with 271 to 333
+    of 500 steps unspent. By day those results now say what the day still holds."""
+    print("finished is not the day")
+    w = World()
+    w.phase = "day"
+    a = w.here
+    c = skills.call(w, "execute", {})
+    ok = check("with nothing known, the refusal says the day is not over",
+               "No work you know of is waiting, and the day is not over" in c.result,
+               c.result)
+    skills.call(w, "todo", {"text": "look north"})
+    c = skills.call(w, "strike", {"n": 1})
+    left = (f"the day is not over: {w.battery} steps of battery and "
+            f"{w.time_left:.0f} seconds are left, and {a.w * a.h - len(a.seen)} of the "
+            f"{a.w * a.h} cells are still unseen.")
+    ok &= check("an emptied list says so, with the numbers",
+                c.result.endswith("Nothing is left open on your list, and " + left),
+                c.result)
+    i = w.interests[0]
+    _beside(w, i.cell)
+    others = [p for p in w.interests if p.found and p is not i] + w.objectives
+    c = skills.call(w, "execute", {})
+    ok &= check("examining the last known work says so too",
+                others or "No other work you know of is waiting, and the day is not "
+                "over" in c.result, c.result)
+
+    w2 = World()
+    skills.call(w2, "todo", {"text": "plan"})
+    c = skills.call(w2, "strike", {"n": 1})
+    ok &= check("at dawn the day has not begun, and there are no numbers",
+                c.result.endswith("Nothing is left open on your list."), c.result)
+    w2.phase = "day"
+    w2.run_clock(w2.time_left)
+    c = skills.call(w2, "execute", {})
+    ok &= check("nor once the day is over", c.result.endswith("is waiting."), c.result)
+    return ok
+
+
 if __name__ == "__main__":
     results = [test_work_is_not_done_by_driving_over_it(),
                test_an_interest_is_hidden_until_seen(),
                test_what_an_interest_is_lives_only_in_the_result(),
+               test_done_is_not_the_end_of_the_day(),
                test_refusing_names_only_the_work_she_knows(),
                test_objectives_go_on_mapped_ground_and_are_seen_at_once(),
                test_the_environment_does_not_rank_them(),
