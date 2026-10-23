@@ -1,6 +1,6 @@
-# Prototype 10d — the manual
+# Prototype 11 — the manual
 
-Everything you can do in 10d and what it does. Setup is in [`README.md`](README.md), and why it
+Everything you can do in 11 and what it does. Setup is in [`README.md`](README.md), and why it
 is built this way is in [`DESIGN.md`](DESIGN.md). In the app, `/help` in her chat and `help` in
 your terminal list the same commands.
 
@@ -13,12 +13,12 @@ reports.
 ## Launching
 
 ```bash
-.venv/bin/python game/main.py --arena 50 --model gemma4:31b-cloud --sols 5 --objectives auto
+.venv/bin/python game/main.py --model gemma4:31b-cloud --sols 5 --objectives auto
 ```
 
 | flag | what it does |
 |---|---|
-| `--arena 30\|50` | which plain. The 50 hides six interests, one inside the C-shaped rock |
+| `--arena 30\|50` | which plain; the 50 by default. The 50 hides six interests, one inside the C-shaped rock |
 | `--sols N` | sols in the mission; `0` is no limit |
 | `--comms on\|off` | whether anyone is at the desk. On by default with a window, off without one |
 | `--objectives manual\|auto` | auto: three objectives from sol 2, one of each priority, a new set once the last is done |
@@ -96,12 +96,19 @@ For running the mission and playing by hand. A leading `/` is fine.
 | P | the scratchpad: her list, her memory, the board |
 | V | the exact view she was sent last |
 | H | show or hide her reasoning |
-| M | the map of what she has seen |
+| M | the map of what she has seen, over the whole window |
 | O | settings, each saying when it applies |
 | Q | end the day now |
 | SPACE | skip the drive or the work being drawn. It also saves day time, since the clock runs while they are |
 | WASD | drive by hand. Avoid it in a test: she isn't told |
 | ESC | quit: K keeps the run, D discards it, ESC goes back |
+
+While you type in her chat, the terminal or a setting, LEFT and RIGHT move the caret, HOME and
+END jump to either end, BACKSPACE and DELETE work at the caret, and a held key repeats.
+
+With the mouse, the M, T and O buttons are their keys, and a click on the chat's input line is
+TAB. Drag MEMORY, at the scratchpad's right edge, to the left to open her memory; the wheel
+scrolls it, and scrolls her chat.
 
 ## What she can do
 

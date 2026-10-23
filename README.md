@@ -46,14 +46,13 @@ The overhead camera in [`ARCHITECTURE.md`](ARCHITECTURE.md) is superseded.
 - [`prototype10b/`](prototype10b/) is the base, [`prototype10c/`](prototype10c/) the rover
   working sols by itself, and [`prototype10d/`](prototype10d/) the sol in four phases. Each one's
   `DESIGN.md` is its scope.
+- [`prototype11/`](prototype11/) is 10d with Harsh's mission-control screen, merged on 23 Oct
+  with the text-input bug fixed. The look is not final: Abhishek moves the view to Unity
+  later, as a 3D view of everything.
 - The rover's chassis is built and laser-cut.
 
 **Next:**
-1. **Prototype 11: Harsh's UI and UX overhaul**, merged and integrated. Check against it:
-   - the text-input bug. In 10d, typed text can only grow at the end or lose its last
-     character: holding backspace deletes one character, and the arrow keys can't move
-     inside the line.
-2. **Prototype 12: Koushik's integration of the LiDAR and the rover with the simulation.** His
+1. **Prototype 12: Koushik's integration of the LiDAR and the rover with the simulation.** His
    work is final. Check against it:
    - five levels, of which 1–3 are reported done:
      1. the keyboard drives the real rover;
@@ -65,14 +64,14 @@ The overhead camera in [`ARCHITECTURE.md`](ARCHITECTURE.md) is superseded.
    - the LiDAR gives discrete values for control and keeps continuous ones for the logs, and
      how it reads angles;
    - the rover moves in more than two directions.
-3. **Prototype 13: 11 and 12 merged.** A small step.
-4. **Prototype 14: the simplification.** The code is brought to
+2. **Prototype 13: 11 and 12 merged.** A small step.
+3. **Prototype 14: the simplification.** The code is brought to
    [`repo_rules.md`](repo_rules.md) §7, so any teammate can explain it line by line.
-5. **The repo goes back to the team for the final hardware:**
+4. **The repo goes back to the team for the final hardware:**
    - the bots and their circuits simulated in software, in a simulator such as Wokwi;
    - later, sensors: a thermometer, and temperature and humidity sensors. Their readings could
      become objectives in the simulation.
-6. **Then optimisation:**
+5. **Then optimisation:**
    - her memory and list overflow the context, past 90% of 16k tokens by sol 7 or 8. Try 32k,
      and hard rules in her prompt for when to do what and what goes in her memory and list;
    - what other papers tried, such as fine-tuning a small model on a large model's outputs;
@@ -122,7 +121,8 @@ branches are kept.
 | [`rover_ideas.md`](rover_ideas.md) | the rover in full — the reasoning, and what was already cut |
 | [`ARCHITECTURE.md`](ARCHITECTURE.md) | how the three layers fit together |
 | [`work_division.md`](work_division.md) | who owns what |
-| [`prototype10d/`](prototype10d/) | the newest build on main — the sol in four phases, interests and objectives |
+| [`prototype11/`](prototype11/) | the newest build on main — 10d with the mission-control screen |
+| [`prototype10d/`](prototype10d/) | the sol in four phases, interests and objectives |
 | [`prototype10c/`](prototype10c/) | the rover working sols by itself, with comms modelled on a real mission |
 | [`prototype10b/`](prototype10b/) | the base the team is testing — the simulation, the planner and the seam to the rover |
 | [`prototype10a/`](prototype10a/) | prototype 10 frozen as the Angaraka recording ran it |

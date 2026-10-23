@@ -28,7 +28,8 @@ repo_rules.md                    the rules everyone shares, and how an AI assist
 prototype10a/                    prototype 10 frozen — the build the Angaraka recording ran on
 prototype10b/                    the base the team is testing; DESIGN.md is its scope
 prototype10c/                    10b plus autonomy and comms, as the 13 Oct run left it
-prototype10d/                    the newest build on main — the sol in four phases; DESIGN.md is its scope
+prototype10d/                    the sol in four phases; DESIGN.md is its scope
+prototype11/                     the newest build on main — 10d with Harsh's screen; DESIGN.md is its scope
 archive/                         prototypes 1–9 as a tarball; also the git tag prototypes-1-9
 docs/findings.md                 what prototypes 1–9 settled — the conclusions, without the code
 docs/course.md                   the coursework track — design, experiments, constraints

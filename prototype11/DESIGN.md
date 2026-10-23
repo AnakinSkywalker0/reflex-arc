@@ -1,4 +1,46 @@
-# Prototype 10d — the sol in four phases
+# Prototype 11 — 10d with a new screen
+
+11 is 10d with Harsh's mission-control screen. The simulation, sight, the skills, the
+prompts, replay and resume are 10d's as of `bf00826`, and 10d's design below holds here
+unchanged. This section is what 11 changes. Every command and key is in
+[`MANUAL.md`](MANUAL.md).
+
+Harsh copied 10d at `6f60d68` into `prototype12-astra/` on the `ui` branch and rebuilt the
+screen. It was merged on 23 Oct as prototype 11, renamed, with `bf00826`'s four 10d fixes
+applied on top, and changed in review as below.
+
+## What 11 changes
+
+- **The screen.** Harsh's dashboard: a header bar, the arena, and a bottom card with
+  buttons for M, T and O, the keys, the stopwatch and the world's last three messages. On
+  the right, cards for the rover's status, the scratchpad with her memory in a drawer, and
+  the current activity, over her chat. A button is its key. The window fills the desktop at
+  launch and can be resized; `render.layout` sizes the tile and the pane from it.
+- **The map.** 10d's ground and rock colours in Harsh's rounded rock shapes, a black grid,
+  his dust storms and his rover. M draws the map over the whole window, her chat included.
+- **No fog leak.** A rock is drawn only inside its own cells, and its shape comes from the
+  rocks she has seen. So the screen never shows a rock before she has seen it.
+- **A caret** in her chat, the terminal and a setting's value.
+- **The 50 is the default arena.** The tests stay on the 30.
+- **`MAP_LABELS`**, off by default, labels the rover's cell on the map, and where a drive is
+  headed and whether it got there.
+
+## Cut in review
+
+- **F11 and the full-screen map,** with `EXPAND_SIMULATION` and the fullscreen and custom
+  display modes. F11's button never took a click, and M already fills the window.
+- **The textured ground, faceted rocks and cast shadows.** The shadows and the rocks' edges
+  showed rocks she had not seen, and 10d's flat ground read better.
+- **The compass, the map's X/Y readout, the always-on rover label and the destination box,**
+  and the rover's camera turret: clutter. The position is in the Rover Status card, and the
+  labels are `MAP_LABELS`.
+- **The `TILE`, `CHAT_W` and `FIT_TO_SCREEN` settings.** The window sets the tile and the
+  pane now.
+
+The look is not final. Abhishek moves the view to Unity later, as a 3D view of everything.
+
+# 10d's design, which 11 keeps
+
 
 10d makes a sol four phases you can see at a glance: dawn, day, dusk and night. The desk
 talks with her at dawn and at night. The day is hers, on a wall clock that nothing pauses.

@@ -1,42 +1,33 @@
-# Prototype12-astra — Angaraka mission control
+# Prototype 11 — setup
 
-Pygame UI redesign of prototype10d, keeping the dashboard layout and using `reference2.png` for its charcoal, silver and muted teal colour palette.
-The rover, terrain generation, navigation, AI, mission timing, saved runs and replay
-use the original prototype10d implementation.
+A language model plans for a rover on a Martian plain, and you watch it drive. 11 is 10d with
+a new screen, Harsh's mission-control dashboard. What 11 changes, and 10d's design underneath
+it, are in [`DESIGN.md`](DESIGN.md).
 
-From this directory, launch with the existing environment:
+![Prototype 11's screen](preview.png)
 
-```bash
-.venv/bin/python game/main.py
-```
+*The arena fully surveyed so the rocks show, drawn by `game/preview.py`. A mission starts in
+fog.*
 
-The UI adds live rover telemetry, Scratchpad, a sliding Memory drawer, activity, and clickable
-Map / Terminal / Settings controls. All original keyboard shortcuts still work.
-Press **M** for a map that uses the whole app window. Press **F11**, or click
-**Expand** on the terrain, for a full-screen map; **M / ESC / F11** returns to the
-dashboard. Map-mode WASD moves the cursor and X marks a cell, as before.
-Terrain uses prototype12b’s connected, rounded rock silhouettes, shaded facets and cast shadows over rust-red Martian regolith. Grid lines mark each simulation cell, using the same base tile size as prototype10d. Storms show animated dust.
+## The screen
 
-The visual preview is `previews/reference2-dashboard.png`; it uses a fully surveyed demo map to show the rock formations. Normal missions retain exploration fog.
-`previews/reference2-laptop.png` shows the compact layout, and
-`previews/reference2-fog.png` shows normal exploration visibility.
-`previews/reference2-map.png` shows the expanded map. Regenerate all four without
-a model connection or saved mission using `.venv/bin/python game/preview.py`.
+The arena is on the left: 10d's ground, rocks with rounded edges, a black grid, the pad, the
+rover, and dust when a storm passes. Under it are buttons for the map, the terminal and the
+settings, the keys, the stopwatch, and the world's last three messages. On the right, four
+cards sit over her chat: the rover's battery, survey, time left and position; the
+scratchpad, with the objectives, the sites she has found and her own list, and her memory in
+a drawer you drag open from its right edge; and what the rover is doing now.
 
-Click the planner input or press TAB to type; the planner expands while typing or
-viewing the model input (V). ESC closes typing/the view. P toggles planner notes,
-and the mouse wheel scrolls the conversation. Drag the Memory handle beside Scratchpad left to reveal saved model memory; scroll with the mouse wheel over the drawer. Unexplored terrain stays hidden.
+Every key from 10d still works. A button is the same as its key, and a click on the chat's
+input line is TAB. M opens the map over the whole window. The window opens filling the
+desktop and can be dragged to any size; the tiles and the pane follow it. Her chat, the
+terminal and a setting's value have a caret: left and right move it, Home and End jump, and
+backspace and delete work where it is.
 
-The setup and launch options inherited from prototype10d follow below. Run commands
-from `prototype12-astra/` when using this copy.
-
-## Original prototype10d setup
-
-A language model plans for a rover on a Martian plain, and you watch it drive. What 10d is
-for, and what it changes from 10c, is in [`DESIGN.md`](DESIGN.md).
+## Setup
 
 You need Python 3.12, pygame, and Ollama with a model in it. Every command below runs from
-this directory, `prototype10d/`.
+this directory, `prototype11/`.
 
 ## Linux
 
@@ -92,7 +83,7 @@ The shipped model is `gemma4:31b-cloud`. If you have not signed in, start with
 
 ## Windows
 
-Written, not yet tested. Use PowerShell, from `prototype10d\`:
+Written, not yet tested. Use PowerShell, from `prototype11\`:
 
 ```powershell
 powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
@@ -107,25 +98,18 @@ ollama pull gemma4:31b-cloud
 
 ## Settings
 
-Astra display settings apply immediately: `DISPLAY_MODE` selects `fit`,
-`fullscreen` (the whole dashboard), or `custom`. Set `SCREEN_WIDTH` and
-`SCREEN_HEIGHT` for custom dimensions. `EXPAND_SIMULATION` fills the window
-with the simulation; use its back control or O → Settings to restore the dashboard.
-The window can also be resized by dragging its edges. The default fills the
-available desktop while leaving room for window borders.
-
-
 **O** opens the settings screen. Every setting says when a change lands:
 
-- **now:** comms, animation speed, the settling pause, showing the model's reasoning.
+- **now:** comms, animation speed, the settling pause, showing the model's reasoning, and
+  `MAP_LABELS`, which labels the rover's cell on the map and where a drive is headed.
 - **next sol:** the model, the day's length, the battery, the radio's cost, auto objectives,
   the turn caps, the storm, the map format and mission length. The planner is fixed for a
   sol, so these wait for nightfall.
-- **after a restart:** the arena, the tile size and the pane width.
+- **after a restart:** the arena, the 50 by default, and the height of the strip under it.
 
 Your changes are saved in `user_settings.json`, which git ignores, and only the ones that
 differ from the code's defaults are written. Two presets load whole sets at once:
-**29 Sept recording** (what 10d ships with: a 500-step battery and a 600-second day) and
+**29 Sept recording** (what 11 ships with: a 500-step battery and a 600-second day) and
 **design** (a 150-step battery, which the work costs were balanced for, and a 200-second
 day). Which should be the default has not been decided.
 
@@ -136,7 +120,7 @@ Flags override your saved settings for one launch: `--model`, `--map`, `--arena`
 ## Running a mission
 
 ```bash
-.venv/bin/python game/main.py --arena 50 --model gemma4:31b-cloud --sols 5
+.venv/bin/python game/main.py --model gemma4:31b-cloud --sols 5
 ```
 
 A sol is dawn, day, dusk and night. At dawn and night you talk to her in her chat (TAB); the
