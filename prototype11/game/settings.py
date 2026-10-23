@@ -263,9 +263,3 @@ ROVER_PAUSE = "none"
 # every plan is made over the same map. The model is told this in the result rather
 # than being left to work out why its situation never changes.
 EXECUTOR = "teleport"
-
-# Live display controls (independent of simulation state).
-DISPLAY_MODE = "fit"
-SCREEN_WIDTH = 1440
-SCREEN_HEIGHT = 900
-EXPAND_SIMULATION = False

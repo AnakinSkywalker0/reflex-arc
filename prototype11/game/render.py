@@ -329,12 +329,7 @@ def draw_map(surf, w, f, cursor, reel=None):
     overlay.fill((*C.VOID, 253))
     surf.blit(overlay, (0, 0))
 
-    expand = pygame.Rect(surf.get_width()-160, 20, 140, 30)
-    pygame.draw.rect(surf, D.PANEL, expand, border_radius=4)
-    pygame.draw.rect(surf, D.BORDER, expand, 1, border_radius=4)
-    D.text(surf, f.tiny, "F11 / FULLSCREEN", (expand.x+18, expand.y+9), D.CYAN)
-
-    cell = max(2, min((surf.get_width() - 80) // a.w, (surf.get_height() - 140) // a.h))
+    cell =max(2, min((surf.get_width() - 80) // a.w, (surf.get_height() - 140) // a.h))
     ox = (surf.get_width() - a.w * cell) // 2
     oy = 72
 
@@ -405,7 +400,7 @@ def draw_map(surf, w, f, cursor, reel=None):
 
     foot = [f"cursor ({cursor[0]}, {cursor[1]})    blue = the plan    "
             "dots = the drive    teal = the pad",
-            "WASD cursor   X mark   F11 fullscreen   M / ESC close"]
+            "WASD cursor   X mark   M / ESC close"]
     for i, line in enumerate(foot):
         s = f.hud.render(line, True, C.MUTED)
         surf.blit(s, s.get_rect(midtop=(surf.get_width() // 2, oy + a.h * cell + 14 + i * 20)))

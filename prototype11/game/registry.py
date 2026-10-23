@@ -111,10 +111,6 @@ def show(v):
 
 
 SETTINGS = [
-    Setting("DISPLAY_MODE", "choice", "now", "whole screen size: fit desktop, fullscreen dashboard, or custom window", choices=("fit", "fullscreen", "custom"), replayed=False),
-    Setting("SCREEN_WIDTH", "int", "now", "custom screen width; select custom display mode to use", 960, 7680, 80, replayed=False),
-    Setting("SCREEN_HEIGHT", "int", "now", "custom screen height; select custom display mode to use", 640, 4320, 60, replayed=False),
-    Setting("EXPAND_SIMULATION", "bool", "now", "expand simulation to the whole window; O opens settings to restore dashboard", replayed=False),
     # --- now ---------------------------------------------------------------
     Setting("ANIM_SPEED", "float", "now", "how fast drives are drawn; 1 is the design "
             "pace, 0.5 the recording's. The day's clock runs while they are",

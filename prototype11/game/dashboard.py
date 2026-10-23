@@ -132,10 +132,6 @@ def map_overlay(surf, w, f, view, ox, oy, reel):
     pygame.draw.polygon(surf, CYAN, [(cx,cy-13),(cx-5,cy+9),(cx,cy+4)])
     pygame.draw.polygon(surf, C.INK, [(cx,cy-13),(cx+5,cy+9),(cx,cy+4)])
     text(surf, f.tiny, 'N', (cx-3,cy-27), C.INK)
-    expand = pygame.Rect(view.right-117, view.top+12, 105, 28)
-    pygame.draw.rect(surf, PANEL, expand, border_radius=4)
-    pygame.draw.rect(surf, BORDER, expand, 1, border_radius=4)
-    text(surf, f.tiny, 'F11 EXPAND', (expand.x+14, expand.y+8), CYAN)
     label = 'JEZERO / SURFACE TELEMETRY' 
     text(surf, f.tiny, label, (view.left+12,view.bottom-22), C.MUTED)
     pos = reel.where(w.pos) if reel else w.pos
@@ -257,9 +253,6 @@ def telemetry(surf, conv, w, f, reel):
 
 
 def click(pos, game_size, pane_size):
-    expand = pygame.Rect(game_size[0]-132, HEADER+27, 105, 28)
-    if expand.collidepoint(pos):
-        return pygame.K_F11
     for rect,label,key in buttons(game_size):
         if rect.collidepoint(pos):
             return key

@@ -175,26 +175,12 @@ def main():
             + ("  ·  comms on" if S.COMMS else "  ·  comms off"))
 
     title()
-    # Before anything asks how big anything is: every other size is derived from
-    # C.TILE and S.CHAT_W, so this has to run ahead of set_mode and the subsurfaces.
-    fullscreen_map = False
     clock = pygame.time.Clock()
     fonts = render.Fonts()
 
-    def display_layout(map_fullscreen=False):
-        desktop = pygame.display.get_desktop_sizes()[0]
-        if map_fullscreen or S.DISPLAY_MODE == "fullscreen":
-            size, flags = desktop, pygame.FULLSCREEN
-        elif S.DISPLAY_MODE == "custom":
-            size, flags = (S.SCREEN_WIDTH, S.SCREEN_HEIGHT), pygame.RESIZABLE
-        else:
-            size = (max(960, desktop[0] - S.SCREEN_RESERVE_W),
-                    max(640, desktop[1] - S.SCREEN_RESERVE_H))
-            flags = pygame.RESIZABLE
-        display = pygame.display.set_mode(size, flags)
-        return layout_surfaces(display)
-
     def layout_surfaces(display):
+        """Every other size comes off the window's: C.TILE and S.CHAT_W are set here,
+        before anything draws. Runs again whenever the window is resized."""
         width, height = display.get_size()
         S.CHAT_W = min(width - 300, max(460, round(width * .38)))
         render.DISPLAY_SIZE = (width, height)
@@ -204,7 +190,12 @@ def main():
         return (display, display.subsurface((0, 0, gw, gh)),
                 display.subsurface((gw, 0, S.CHAT_W, gh)))
 
-    screen, game, pane = display_layout()
+    # The window fills the desktop, less its border and the taskbar, and can be dragged to
+    # any size from there.
+    desktop = pygame.display.get_desktop_sizes()[0]
+    screen, game, pane = layout_surfaces(pygame.display.set_mode(
+        (max(960, desktop[0] - S.SCREEN_RESERVE_W), max(640, desktop[1] - S.SCREEN_RESERVE_H)),
+        pygame.RESIZABLE))
 
     # The run starts recording immediately. Whether it is kept is asked at the end;
     # see logs.py for why that order and not the other one.
@@ -590,13 +581,10 @@ def main():
         return True
 
     def change(st, v):
-        nonlocal screen, game, pane
         try:
             v = prefs.set(st.name, v)
         except ValueError as err:
             return f"{st.name} not changed: {err}"
-        if st.name in ("DISPLAY_MODE", "SCREEN_WIDTH", "SCREEN_HEIGHT"):
-            screen, game, pane = display_layout(fullscreen_map)
         if st.name == "MODEL" and models is not None and v not in models:
             return f"{v} is not in `ollama list`; pull it before the next sol"
         return f"{st.name} {registry.show(v)} -- {registry.TIER_NAMES[st.tier]}"
@@ -608,11 +596,11 @@ def main():
         now = pygame.time.get_ticks()
 
         for e in pygame.event.get():
-            if e.type == pygame.VIDEORESIZE and not fullscreen_map and S.DISPLAY_MODE != "fullscreen":
+            if e.type == pygame.VIDEORESIZE:
                 screen, game, pane = layout_surfaces(pygame.display.set_mode(
                     (max(960, e.w), max(640, e.h)), pygame.RESIZABLE))
                 continue
-            if mode == "world" and not typing and not S.EXPAND_SIMULATION:
+            if mode == "world" and not typing:
                 if render.D.memory_event(e, game.get_width()):
                     continue
             if e.type == pygame.QUIT:
@@ -621,14 +609,8 @@ def main():
                 held = None
             if e.type == pygame.MOUSEWHEEL:
                 scroll = max(0, min(scroll_max, scroll + e.y * 3))
-            if (e.type == pygame.MOUSEBUTTONDOWN and e.button == 1 and (mode == "map" or (mode == "world" and S.EXPAND_SIMULATION))
-                    and pygame.Rect(screen.get_width()-160, 20, 140, 30).collidepoint(e.pos)):
-                if S.EXPAND_SIMULATION and not fullscreen_map:
-                    prefs.set("EXPAND_SIMULATION", False)
-                    mode = "world"
-                    continue
-                e = pygame.event.Event(pygame.KEYDOWN, key=pygame.K_F11, unicode="")
-            if e.type == pygame.MOUSEBUTTONDOWN and e.button == 1 and mode == "world" and not S.EXPAND_SIMULATION and not typing:
+            # A click on a button is the same as pressing its key.
+            if e.type == pygame.MOUSEBUTTONDOWN and e.button == 1 and mode == "world" and not typing:
                 key = render.D.click(e.pos, game.get_size(), pane.get_size())
                 if key is not None:
                     e = pygame.event.Event(pygame.KEYDOWN, key=key, unicode="")
@@ -640,14 +622,6 @@ def main():
             if mode == "quit":
                 if not answer_quit(e):
                     mode = "world"
-                continue
-
-            # Full-screen map is a display mode only; the mission keeps ticking.
-            if not typing and mode in ("world", "map") and (
-                    e.key == pygame.K_F11 or (fullscreen_map and e.key in (pygame.K_ESCAPE, pygame.K_m))):
-                fullscreen_map = not fullscreen_map
-                screen, game, pane = display_layout(fullscreen_map)
-                mode, cursor, held = ("map" if fullscreen_map else "world"), w.pos, None
                 continue
 
             # Typing to gemma eats every key, the same way the console does.
@@ -802,7 +776,7 @@ def main():
                                       S.SHOW_THINKING, reel,
                                       sight.view(w) if mode == "view" else None, pad_open,
                                       pilot)
-        if mode == "map" or (mode == "world" and S.EXPAND_SIMULATION):
+        if mode == "map":
             render.draw_map(screen, w, fonts, cursor, reel)
         if mode == "settings":
             render.draw_settings(screen, fonts, items, picked, prefs, editing, notice,
