@@ -93,14 +93,11 @@ MODEL_SEED = 0
 SHOW_THINKING = True    # whether the pane displays the trace; the tape records it anyway
 MAP_LABELS = False      # the rover's cell and its drive's target, labelled on the map
 
-CHAT_W = 990           # pixel width of the pane, before the screen has a say
+# A starting value only: `render.layout` sets it, and config's TILE, from the window.
+CHAT_W = 990           # pixel width of the pane
 
-# The numbers above make an 1880x990 window, which does not fit a 1080p laptop once
-# the title bar and taskbar are taken -- the bottom of the arena and the HUD with it
-# end up off screen. `render.fit_to_display` shrinks the tiles, and then the pane,
-# until it fits whatever it opens on. Turn it off to get the sizes above exactly,
-# which is what a screenshot that has to match somebody else's needs.
-FIT_TO_SCREEN = True
+# The window opens the desktop's size less these, so it fits under the title bar and
+# above the taskbar. It can be dragged to any size after.
 SCREEN_RESERVE_W = 60   # window border and a little air
 SCREEN_RESERVE_H = 110  # title bar plus the taskbar
 

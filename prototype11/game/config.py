@@ -44,8 +44,6 @@ MARK = (111, 190, 183)      # your X. Cyan is the one hue the ground cannot supp
 PATH = (112, 153, 184)      # a route being priced by `distance` -- blue, costs nothing
 PLAN = (92, 152, 224)       # route driven by `goto` -- blue, costs steps
 GOTO_ROUTE = (226, 182, 72) # yellow dots for the route driven by `goto`
-STORM = (150, 128, 96)     # dust in the air: the regolith's own colour, lifted and pale
-STORM_DARK = (112, 94, 68) # ...and the hatching through it, so it reads as weather
 BUMP = (240, 118, 96)      # the cell that refused, flashed as the plan is torn up
 INTEREST = (186, 140, 236) # a square: something worth a closer look. No other violet here
 WALKED = (167, 100, 69)    # ...and the ground it actually covered, under it
@@ -231,11 +229,9 @@ ARENAS = {"30": (FLATS_30, (15, 15), INTERESTS_30),
 # broke seven suites at once. This one is what anything gets that does not ask --
 # the tests and the probes, whose coordinates are all written against the 30.
 DEFAULT_ARENA = "30"
-# ...and this is what `main.py` opens on. The 30 now: it is the size the real arena will
-# be, the C lives on it, and a 150-step day is budgeted against crossing it. The 50 was
-# the app arena while Ingenuity was in, because a sortie on the 30 bought a fifth of the
-# map in one go; with the flyer cut there is nothing left that needs the room.
-APP_ARENA = "30"
+# ...and this is what `main.py` opens on. The 50, from prototype 11: every run since
+# 14 Oct has been played on it. The 30 is still the size the real arena will be.
+APP_ARENA = "50"
 
 
 def use(name):

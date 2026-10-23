@@ -25,49 +25,17 @@ def game_size():
     return C.VIEW_W * C.TILE + MARGIN * 2, C.VIEW_H * C.TILE + C.HUD_H + MARGIN * 2 + D.HEADER
 
 
-def window_size():
-    if DISPLAY_SIZE is not None:
-        return DISPLAY_SIZE
+def layout(width, height):
+    """Every size, from the window's. The pane gets about 38% of the width and the tile
+    is the biggest that fits the arena in the rest. Returns the arena's rect and the
+    pane's. `main` calls it at launch and again on every resize."""
+    global DISPLAY_SIZE
+    S.CHAT_W = min(width - 300, max(460, round(width * .38)))
+    DISPLAY_SIZE = (width, height)
+    C.TILE = max(3, min((width - S.CHAT_W - MARGIN * 2) // C.VIEW_W,
+                        (height - C.HUD_H - MARGIN * 2 - D.HEADER) // C.VIEW_H))
     gw, gh = game_size()
-    return gw + S.CHAT_W, gh
-
-
-MIN_CHAT = 460      # narrower than this and the pane wraps into uselessness
-MIN_TILE = 6        # smaller and the grid stops being readable at all
-
-
-def fit_to_display():
-    """Shrink the tile and the pane until the window fits the desktop it opens on.
-
-    The shipped 17px tile and 1000px pane make an 1880x990 window. That is bigger than
-    a 1536x864 laptop, and the way it fails is bad: the pane hangs off the right edge,
-    the HUD sits under the taskbar, and a window whose controls you cannot reach looks
-    from the outside exactly like a game that did not start.
-
-    Height sets the tile, because only the tile can shrink it; width then buys back
-    whatever is left for the pane. Never grows either -- the numbers in `config.py` and
-    `settings.py` stay the ceiling, so a big monitor gets what was designed and a small
-    one gets the same layout, smaller. Below the minimums it stops and overflows
-    visibly: a 3px tile that technically fits is worse than a window you can drag.
-
-    Mutates `C.TILE` and `S.CHAT_W`, which every other size here is derived from, so
-    call it once after `pygame.init()` and before anything reads either. Returns the
-    window size that results. `S.FIT_TO_SCREEN = False` leaves the shipped numbers
-    exactly, which is what a screenshot that has to match somebody else's needs.
-    """
-    if not S.FIT_TO_SCREEN:
-        return window_size()
-    try:
-        sw, sh = pygame.display.get_desktop_sizes()[0]
-    except (pygame.error, IndexError):
-        return window_size()        # no display to ask; leave the shipped numbers
-    sw, sh = sw - S.SCREEN_RESERVE_W, sh - S.SCREEN_RESERVE_H
-
-    by_height = (sh - C.HUD_H - MARGIN * 2 - D.HEADER) // C.VIEW_H
-    by_width = (sw - MIN_CHAT - MARGIN * 2) // C.VIEW_W
-    C.TILE = max(MIN_TILE, min(C.TILE, by_height, by_width))
-    S.CHAT_W = max(MIN_CHAT, min(S.CHAT_W, max(MIN_CHAT, int(sw * .35)), sw - game_size()[0]))
-    return window_size()
+    return pygame.Rect(0, 0, gw, gh), pygame.Rect(gw, 0, S.CHAT_W, gh)
 
 
 class Fonts:
@@ -219,7 +187,7 @@ def draw_world(surf, w, f, reel=None):
     surf.set_clip(None)
     _rim(surf, a, ox, oy)
     D.map_overlay(surf, w, f, view, ox, oy, reel)
-    _hud(surf, w, f, reel)
+    D.bottom(surf, w, f, reel)
     D.header(surf, w, f)
 
 
@@ -334,17 +302,6 @@ def _x_mark(surf, rect):
     r = rect.inflate(-4, -4)
     pygame.draw.line(surf, C.MARK, r.topleft, r.bottomright, 2)
     pygame.draw.line(surf, C.MARK, r.topright, r.bottomleft, 2)
-
-
-def budget(w):
-    """The phase, the clock and the battery. One wording, in one place."""
-    mins, secs = divmod(max(0, int(w.time_left)), 60)
-    return (f"{w.phase.upper()}  {mins}:{secs:02d}    battery {w.battery}/{S.BATTERY}"
-            + ("  (stranded)" if w.stranded else ""))
-
-
-def _hud(surf, w, f, reel=None):
-    D.bottom(surf, w, f, reel)
 
 
 def draw_map(surf, w, f, cursor, reel=None):
@@ -613,8 +570,8 @@ def _draw_transcript(surf, conv, w, f, line, focused, scroll, show_thinking=True
 
     surf.blit(f.big.render("AI PLANNER / LIVE FEED", True, C.CHAT_TEXT), (x, 14))
     link = conv.link
-    sub = (f"{link.model}{'  (fallback)' if link.down else ''}   ·   sol {conv.day}   ·   "
-           + ("comms on" if S.COMMS else "comms off"))
+    # The sol and comms are in the bar above, so only the model is said here.
+    sub = f"{link.model}{'  (fallback)' if link.down else ''}"
     if not show_thinking:
         sub += "   ·   reasoning hidden"
     D.text(surf, f.tiny, sub, (x, 40), C.CHAT_MUTED, inner)
@@ -695,7 +652,7 @@ def _draw_transcript(surf, conv, w, f, line, focused, scroll, show_thinking=True
             else "ENTER send    ESC stop typing    /help lists the commands" if focused
             else "TAB her chat   T terminal   V what she sees   H thinking   P scratchpad   "
                  "O settings")
-    for i, part in enumerate(textwrap.wrap(hint, max(24, inner // f.tiny.size("M")[0]))[:2]):
+    for i, part in enumerate(D.key_lines(f.tiny, hint, inner)[:2]):
         surf.blit(f.tiny.render(part, True, C.CHAT_MUTED), (x, H - 34 + i * 16))
     if scroll:
         s = f.tiny.render(f"scrolled back {scroll}", True, C.CHAT_BAD)

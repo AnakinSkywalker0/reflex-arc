@@ -189,7 +189,7 @@ def main():
         """The map format is here because nothing else on screen tells the two arms
         apart. Rewritten at nightfall, when the model or the format may change."""
         pygame.display.set_caption(
-            f"ANGARAKA -- prototype12-astra  ·  {C.VIEW_W}x{C.VIEW_H}  ·  {S.MAP_FORMAT} map"
+            f"ANGARAKA -- prototype 11  ·  {C.VIEW_W}x{C.VIEW_H}  ·  {S.MAP_FORMAT} map"
             + (f"  ·  replay of {pathlib.Path(args.replay).name}" if args.replay else
                f"  ·  {S.MODEL}")
             + ("  ·  thinking" if S.MODEL_THINK else "")
@@ -200,16 +200,9 @@ def main():
     fonts = render.Fonts()
 
     def layout_surfaces(display):
-        """Every other size comes off the window's: C.TILE and S.CHAT_W are set here,
-        before anything draws. Runs again whenever the window is resized."""
-        width, height = display.get_size()
-        S.CHAT_W = min(width - 300, max(460, round(width * .38)))
-        render.DISPLAY_SIZE = (width, height)
-        C.TILE = max(3, min((width - S.CHAT_W - 30) // C.VIEW_W,
-                            (height - C.HUD_H - 30 - render.D.HEADER) // C.VIEW_H))
-        gw, gh = render.game_size()
-        return (display, display.subsurface((0, 0, gw, gh)),
-                display.subsurface((gw, 0, S.CHAT_W, gh)))
+        """The window, and the arena's and the pane's parts of it, sized off it."""
+        game_rect, pane_rect = render.layout(*display.get_size())
+        return display, display.subsurface(game_rect), display.subsurface(pane_rect)
 
     # The window fills the desktop, less its border and the taskbar, and can be dragged to
     # any size from there.

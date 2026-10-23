@@ -183,25 +183,19 @@ SETTINGS = [
     # --- after a restart ---------------------------------------------------
     Setting("APP_ARENA", "choice", "relaunch", "the arena: 30x30 or 50x50",
             choices=tuple(C.ARENAS), mod=C),
-    Setting("TILE", "int", "relaunch", "pixels a cell, before the screen has a say",
-            6, 40, mod=C, replayed=False),
+    # The tile and the pane are not settings: they come off the window's size.
     Setting("HUD_H", "int", "relaunch", "height of the strip under the arena",
-            80, 250, 10, mod=C, replayed=False),
-    Setting("CHAT_W", "int", "relaunch", "width of the planner's pane", 460, 1600, 10,
-            replayed=False),
-    Setting("FIT_TO_SCREEN", "bool", "relaunch", "shrink the tile and the pane until "
-            "the window fits", replayed=False),
+            150, 250, 10, mod=C, replayed=False),
 ]
 BY_NAME = {s.name: s for s in SETTINGS}
 
 # The 29 Sept recording is what 10b to 10d ship with. The design set is what the 40/15/60
 # work costs were balanced for. Which should be the default is undecided.
 PRESETS = {
-    "29 Sept recording": {"TILE": 30, "HUD_H": 150, "BATTERY": 500, "DAY_SECONDS": 600,
-                          "MOVE_HOPS": 20, "FREE_HOPS": 10, "CHAT_W": 990,
-                          "ANIM_SPEED": 0.5},
-    "design": {"TILE": 17, "HUD_H": 110, "BATTERY": 150, "DAY_SECONDS": 200,
-               "MOVE_HOPS": 10, "FREE_HOPS": 5, "CHAT_W": 1000, "ANIM_SPEED": 1.0},
+    "29 Sept recording": {"BATTERY": 500, "DAY_SECONDS": 600, "MOVE_HOPS": 20,
+                          "FREE_HOPS": 10, "ANIM_SPEED": 0.5},
+    "design": {"BATTERY": 150, "DAY_SECONDS": 200, "MOVE_HOPS": 10, "FREE_HOPS": 5,
+               "ANIM_SPEED": 1.0},
 }
 
 

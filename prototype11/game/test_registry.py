@@ -114,12 +114,12 @@ def test_each_tier_lands_when_it_says():
         p.set("MODEL", S.MODEL)
         ok &= check("changing it back cancels the wait", "MODEL" not in p.pending)
 
-        tile = C.TILE
-        p.set("TILE", 17)
+        hud = C.HUD_H
+        p.set("HUD_H", 200)
         p.nightfall()
-        ok &= check("relaunch: not applied by nightfall either", C.TILE == tile)
+        ok &= check("relaunch: not applied by nightfall either", C.HUD_H == hud)
         registry.Prefs(sb.path).apply_all()
-        ok &= check("...only at the next start", C.TILE == 17)
+        ok &= check("...only at the next start", C.HUD_H == 200)
     return ok
 
 
@@ -161,7 +161,7 @@ def test_the_prompt_states_the_settings():
 
 def test_replay_uses_the_logs_settings():
     print("replay takes the kept run's values")
-    rows = [{"kind": "settings", "sol": 1, "values": {"BATTERY": 150, "TILE": 9,
+    rows = [{"kind": "settings", "sol": 1, "values": {"BATTERY": 150, "HUD_H": 190,
                                                       "MODEL": "elsewhere"}},
             {"kind": "settings", "sol": 2, "values": {"BATTERY": 300}}]
     with Sandbox() as sb, tempfile.TemporaryDirectory() as d:
@@ -169,10 +169,10 @@ def test_replay_uses_the_logs_settings():
         (run / "game.jsonl").write_text("\n".join(json.dumps(r) for r in rows))
         (run / "chat.jsonl").write_text("")
         script = replay.Script(run)
-        tile, model = C.TILE, S.MODEL
+        hud, model = C.HUD_H, S.MODEL
         script.use_settings(1)
         ok = check("sol 1's world settings", S.BATTERY == 150)
-        ok &= check("the viewer keeps their own window", C.TILE == tile)
+        ok &= check("the viewer keeps their own window", C.HUD_H == hud)
         ok &= check("...and nothing about the model is taken", S.MODEL == model)
         script.use_settings(2)
         ok &= check("sol 2's own", S.BATTERY == 300)

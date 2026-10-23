@@ -1,7 +1,6 @@
 """Angaraka mission-control presentation. Reads game state; never changes it.
 
-All clickable controls return existing keyboard actions to main.py. Textures are
-coordinate hashes, independent of the simulation's random numbers and terrain.
+All clickable controls return existing keyboard actions to main.py.
 """
 import textwrap
 import pygame
@@ -23,6 +22,22 @@ def text(surf, font, value, pos, color=None, width=None):
             value = value[:-1]
         value += "..."
     surf.blit(font.render(value, True, color or C.INK), pos)
+
+
+def key_lines(font, hint, width):
+    """A hint like `TAB her chat   T terminal` as lines that fit `width`, broken between
+    keys and never inside one."""
+    lines = [""]
+    for group in hint.split("   "):
+        group = group.strip()
+        if not group:
+            continue
+        joined = (lines[-1] + "   " + group).strip()
+        if lines[-1] and font.size(joined)[0] > width:
+            lines.append(group)
+        else:
+            lines[-1] = joined
+    return lines
 
 
 def card(surf, rect, title, f, accent=CYAN, badge=None):
@@ -52,8 +67,6 @@ def header(surf, w, f):
     pygame.draw.polygon(surf, AMBER, [(x+2,y+4),(x-5,y+15),(x+9,y+15)])
     text(surf, f.brand, 'A N G A R A K A', (58, 10), AMBER)
     text(surf, f.tiny, 'MISSION CONTROL  /  REFLEX ARC', (60, 38), C.MUTED)
-    if surf.get_width() > 520:
-        text(surf, f.hud, f'SOL {w.day:02d}', (surf.get_width()-110, 20), CYAN)
 
 
 def rover(surf, cx, cy, size=None):
@@ -111,9 +124,10 @@ def map_overlay(surf, w, f, view, ox, oy, reel):
 
 
 def buttons(size):
+    """The three buttons, in the left part of the bottom card. The messages get the rest."""
     width, height = size
     y = height-C.HUD_H+44
-    available = width-42
+    available = (width-42) * 55 // 100
     bw = (available-16)//3
     return [(pygame.Rect(15+i*(bw+8),y,bw,34), label,key)
             for i,(label,key) in enumerate((('M  MAP',pygame.K_m),
@@ -123,25 +137,34 @@ def buttons(size):
 def bottom(surf, w, f, reel):
     y = surf.get_height()-C.HUD_H+8
     rect = pygame.Rect(15,y,surf.get_width()-30,C.HUD_H-18)
-    card(surf,rect,'FLIGHT CONTROLS',f,badge=f'{S.ANIM_SPEED:g}x ANIMATION')
+    card(surf,rect,'FLIGHT CONTROLS',f,
+         badge=f'ELAPSED {w.elapsed:.0f}s   {S.ANIM_SPEED:g}x ANIMATION')
     for r,label,key in buttons(surf.get_size()):
         hover = pygame.display.get_init() and r.collidepoint(pygame.mouse.get_pos())
         pygame.draw.rect(surf,(48,62,64) if hover else (33,38,43),r,border_radius=5)
         pygame.draw.rect(surf,AMBER if hover else BORDER,r,1,border_radius=5)
         label_s = f.chat_head.render(label,True,AMBER if hover else C.INK)
         surf.blit(label_s,label_s.get_rect(center=r.center))
-    text(surf,f.tiny,'WASD drive   X mark   TAB chat   ESC quit',(28,y+79),C.MUTED)
+    left = buttons(surf.get_size())[-1][0].right - 28
+    text(surf,f.tiny,'WASD drive   X mark   TAB chat   ESC quit',(28,y+79),C.MUTED,left)
     hint = 'SPACE confirm rover stopped' if w.awaiting_rover is not None else (
         'SPACE skip animation' if reel and reel.busy else 'Q end day   C comms   H reasoning   P notes')
-    text(surf,f.tiny,hint,(28,y+96),CYAN,rect.w-24)
+    text(surf,f.tiny,hint,(28,y+96),CYAN,left)
+    # The world's last three messages, newest on top and brightest: what the terminal
+    # printed, or what X just marked.
+    x = left + 44
+    for i, (msg, tone) in enumerate(reversed(w.log[-3:])):
+        col = {"good": C.GOOD, "bad": C.BAD}.get(tone, C.INK)
+        shade = tuple(min(255, int(v * (1 - i * 0.3))) for v in col)
+        text(surf, f.hud, msg, (x, y + 40 + i * 22), shade, rect.right - x - 14)
 
 
 def telemetry(surf, conv, w, f, reel):
     width,height = surf.get_size()
     pygame.draw.rect(surf,(21,24,28),(0,0,width,HEADER-8))
     pygame.draw.line(surf,BORDER,(0,HEADER-8),(width-15,HEADER-8))
-    link = 'FALLBACK' if conv.link.down else 'COMMS ON' if S.COMMS else 'COMMS OFF'
-    color = AMBER if conv.link.down else C.GOOD if S.COMMS else C.MUTED
+    link = 'COMMS ON' if S.COMMS else 'COMMS OFF'
+    color = C.GOOD if S.COMMS else C.MUTED
     pygame.draw.circle(surf,color,(22,27),4)
     text(surf,f.chat_head,link,(34,20),color)
     label = f'SOL {w.day:02d} / {w.phase.upper()}'
@@ -162,9 +185,14 @@ def telemetry(surf, conv, w, f, reel):
     for i in (1,2):
         pygame.draw.line(surf,BORDER,(x+i*gap,HEADER+39),(x+i*gap,HEADER+99))
     mins,secs=divmod(max(0,int(w.time_left)),60)
-    pos = reel.where(w.pos) if reel else w.pos
+    # While a drive is being drawn the world is already at its end, so say both: where
+    # the rover is drawn, and where it already is.
+    if reel and reel.at and reel.at != w.pos:
+        where = f'({reel.at[0]}, {reel.at[1]}) -> ({w.pos[0]}, {w.pos[1]})'
+    else:
+        where = f'({w.pos[0]}, {w.pos[1]})'
     for i,heading,value,sub in ((1,'SOL REMAINING',f'{mins:02d}:{secs:02d}',w.phase.upper()),
-                               (2,'POSITION',f'X {pos[0]:.0f}  Y {pos[1]:.0f}',
+                               (2,'POSITION',where,
                                 'STRANDED' if w.stranded else 'ROVER LOST' if w.lost else 'SURFACE ROVER')):
         xx=x+i*gap+14
         text(surf,f.tiny,heading,(xx,HEADER+39),C.MUTED,gap-20)
@@ -177,7 +205,6 @@ def telemetry(surf, conv, w, f, reel):
     rect=pygame.Rect(x,top,wide,objective_h)
     objectives=list(w.here.objectives.values())
     found=[o for o in w.here.interests.values() if o.found]
-    done=len(w.finished)
     card(surf,rect,'SCRATCHPAD',f,AMBER)
     rows=[(f'Objective {o.glyph} / {o.priority} / ({o.cell[0]}, {o.cell[1]})',False) for o in objectives]
     rows += [(f'Examine site ({o.cell[0]}, {o.cell[1]})',False) for o in found]
@@ -201,7 +228,7 @@ def telemetry(surf, conv, w, f, reel):
     rect=pygame.Rect(x,top,wide,73)
     card(surf,rect,'CURRENT ACTIVITY',f)
     if w.awaiting_rover is not None:
-        activity='Physical rover driving / SPACE when stopped'
+        activity=f'Rover driving {" ".join(w.awaiting_rover)[:40]} / SPACE when stopped'
     elif reel and reel.work:
         cell,n,total = reel.work
         activity=f'Working at {cell} / {n}/{total} steps'
