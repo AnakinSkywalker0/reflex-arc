@@ -121,7 +121,7 @@ corrected. The overhead camera in [`ARCHITECTURE.md`](ARCHITECTURE.md) is supers
 | [`prototype10a/`](prototype10a/) | prototype 10 frozen as the Angaraka recording ran it |
 | [`docs/findings.md`](docs/findings.md) | what prototypes 1–9 settled — read before changing how the model is spoken to |
 | [`archive/`](archive/) | prototypes 1–9, as a tarball |
-| [`repo_rules.md`](repo_rules.md) | git, context budget, and how ideas get written down |
+| [`repo_rules.md`](repo_rules.md) | git, branches and prototypes, and how an AI assistant works with you |
 | [`docs/course.md`](docs/course.md) | the Hollow Knight implementation — the coursework track |
 | [`docs/sih-decision.md`](docs/sih-decision.md) | which SIH entries we made, and why — closed; links both decks |
 | [`docs/novelty.md`](docs/novelty.md) | is this actually new — prior art, verified against primary sources |

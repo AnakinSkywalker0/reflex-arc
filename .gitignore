@@ -10,13 +10,15 @@
 
 # Context for a model, not for a teammate. Everyone keeps their own.
 HANDOFF.md
+/memory/
 .claude/
 
-# CLAUDE.md is the tracked one and holds the repo rules whatever tool you drive.
-# Anything else is that tool's copy of them and drifts the moment it is edited.
-GEMINI.md
-AGENTS.md
+# CLAUDE.md, AGENTS.md and GEMINI.md are tracked and only point at repo_rules.md.
+# Any fuller copy of the rules drifts the moment it is edited.
 .cursorrules
+
+# Keys, tokens and passwords. Never committed.
+.env
 
 # OS / editor
 .DS_Store

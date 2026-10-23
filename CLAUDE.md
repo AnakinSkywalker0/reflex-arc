@@ -3,6 +3,10 @@
 Repo-scoped instructions. These are standing rules; anything true only *right now* belongs in
 your own `HANDOFF.md` instead — untracked, one per person.
 
+**Read [`repo_rules.md`](repo_rules.md) first** and follow its "For AI assistants" section for
+the whole session; where it and this file differ, it wins. The exception is Ishan's own sessions
+(git user `IshuIsAwake`), which work from this file and his own notes.
+
 ## The project
 
 **Reflex Arc.** A language model that issues goals to frozen, learned control policies. The model
@@ -20,7 +24,7 @@ ROVER.md                         the hardware implementation — the hackathon t
 rover_ideas.md                   the long version of ROVER.md — reasoning, and what was cut
 ARCHITECTURE.md                  the three layers and how a decision reaches the motors
 work_division.md                 who owns what — allocated, with the detail linked
-repo_rules.md                    the rules everyone shares — git, context, writing things down
+repo_rules.md                    the rules everyone shares, and how an AI assistant works with you
 prototype10a/                    prototype 10 frozen — the build the Angaraka recording ran on
 prototype10b/                    the base the team is testing; DESIGN.md is its scope
 prototype10c/                    10b plus autonomy and comms, as the 13 Oct run left it
