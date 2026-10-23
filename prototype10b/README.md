@@ -10,6 +10,15 @@ this directory, `prototype10b/`.
 
 Tested on Linux Mint 22.3 on 11 Oct 2026.
 
+On this machine, Python 3.12 and pygame are installed in `.venv/`. A cloud-only
+Ollama executable is in `.venv/ollama/bin/ollama`, with `gemma4:31b-cloud`
+registered. Sign in with `.venv/ollama/bin/ollama signin` while the server is
+running. Local inference needs the full Ollama runtime and a downloaded model.
+From the repository root, `./run.sh --pause none` starts Ollama if necessary and
+opens the simulation. Omit `--pause none` when using the physical rover.
+The launcher passes through all the flags below; its server log is in
+`runs/ollama-server.log`.
+
 **1. Python and the venv.** `uv` installs without root and fetches its own Python:
 
 ```bash
