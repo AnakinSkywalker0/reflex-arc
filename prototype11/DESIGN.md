@@ -13,8 +13,9 @@ applied on top, and changed in review as below.
 
 - **The screen.** Harsh's dashboard: a header bar, the arena, and a bottom card with
   buttons for M, T and O, the keys, the stopwatch and the world's last three messages. On
-  the right, cards for the rover's status, the scratchpad with her memory in a drawer, and
-  the current activity, over her chat. A button is its key. The window fills the desktop at
+  the right, the rover's status and one scratchpad over her chat. The scratchpad shows
+  today's list, or, flipped by its MEMORY arrow or P, her memory and the board. A button is
+  its key. The window fills the desktop at
   launch and can be resized; `render.layout` sizes the tile and the pane from it.
 - **The map.** 10d's ground and rock colours in Harsh's rounded rock shapes, a black grid,
   his dust storms and his rover. M draws the map over the whole window, her chat included.
@@ -34,6 +35,10 @@ applied on top, and changed in review as below.
 - **The compass, the map's X/Y readout, the always-on rover label and the destination box,**
   and the rover's camera turret: clutter. The position is in the Rover Status card, and the
   labels are `MAP_LABELS`.
+- **The chat's own scratchpad, the memory drawer and the Current Activity card.** Her list
+  and memory showed twice, the drawer had to be dragged open, and the card repeated the
+  chat's status line, which now also says when the rover is driving. Their room went to
+  the chat.
 - **The `TILE`, `CHAT_W` and `FIT_TO_SCREEN` settings.** The window sets the tile and the
   pane now.
 

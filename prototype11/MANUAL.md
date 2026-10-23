@@ -93,7 +93,7 @@ For running the mission and playing by hand. A leading `/` is fine.
 | TAB | her chat; ESC leaves it |
 | T | your terminal; ESC leaves it |
 | C | comms on or off, for this run |
-| P | the scratchpad: her list, her memory, the board |
+| P | flip the scratchpad between today's list and what lasts: her memory and the board |
 | V | the exact view she was sent last |
 | H | show or hide her reasoning |
 | M | the map of what she has seen, over the whole window |
@@ -106,9 +106,9 @@ For running the mission and playing by hand. A leading `/` is fine.
 While you type in her chat, the terminal or a setting, LEFT and RIGHT move the caret, HOME and
 END jump to either end, BACKSPACE and DELETE work at the caret, and a held key repeats.
 
-With the mouse, the M, T and O buttons are their keys, and a click on the chat's input line is
-TAB. Drag MEMORY, at the scratchpad's right edge, to the left to open her memory; the wheel
-scrolls it, and scrolls her chat.
+With the mouse, the M, T and O buttons are their keys, a click on the chat's input line is
+TAB, and MEMORY at the scratchpad's top right is P (LIST flips it back). The wheel scrolls the
+scratchpad when it is over it, and her chat anywhere else.
 
 ## What she can do
 

@@ -46,7 +46,6 @@ class Fonts:
         self.hud = pygame.font.SysFont(mono, 14)
         self.big = pygame.font.SysFont(mono, 19, bold=True)
         self.chat = pygame.font.SysFont(mono, 15)
-        self.memory = pygame.font.SysFont(mono, 16)
         self.chat_head = pygame.font.SysFont(mono, 12, bold=True)
         self.brand = pygame.font.SysFont(mono, 23, bold=True)
 
@@ -525,36 +524,8 @@ def _overlay_lines(text, cols):
             for piece in (textwrap.wrap(para, cols, drop_whitespace=False) or [""])]
 
 
-def _pad_lines(w, cols, open_):
-    """The scratchpad: her list as checkboxes, then the note and the orders under it."""
-    n = w.notes
-    head = f"SCRATCHPAD   {n.open} open of {len(n.todos)}"
-    if not open_:
-        return [(head + "   P to show", C.CHAT_MUTED, False)]
-    out = [(head + "   P to hide", C.CHAT_MUTED, False)]
-    for i, (text, struck) in enumerate(n.todos, 1):
-        box = "[x]" if struck else "[ ]"
-        tone = C.CHAT_MUTED if struck else C.CHAT_TEXT
-        for k, piece in enumerate(textwrap.wrap(text, cols - 7) or [""]):
-            out.append(((f"{box} {i:>2} " if k == 0 else " " * 7) + piece, tone, True))
-    if not n.todos:
-        out.append(("nothing on today's list", C.CHAT_THINK, True))
-    sections = (("MEMORY", [f"{k}: {v}" for k, v in n.memory.items()], C.CHAT_PLANNER),
-                ("STANDING ORDERS", [f"{i}. {t}" for i, t in enumerate(n.orders, 1)],
-                 C.CHAT_OPERATOR))
-    for title, items, tone in sections:
-        out.append((title, C.CHAT_MUTED, False))
-        for item in items:
-            for line in item.splitlines():
-                for piece in textwrap.wrap(line, cols) or [""]:
-                    out.append((piece, tone, True))
-        if not items:
-            out.append(("(none)", C.CHAT_THINK, True))
-    return out
-
-
 def _draw_transcript(surf, conv, w, f, line, focused, scroll, show_thinking=True, reel=None,
-              overlay=None, pad=None, pilot=None, caret=None):
+              overlay=None, pilot=None, caret=None):
     """The right-hand pane. Returns how far back it is still possible to scroll.
 
     `overlay` replaces the transcript with a block to read -- V, and the view. It is
@@ -579,13 +550,18 @@ def _draw_transcript(surf, conv, w, f, line, focused, scroll, show_thinking=True
     # The held state gets its own word. Without it the pane reads "ready" for the
     # several seconds the planner is deliberately sitting still, which looks like a
     # hang rather than the round trip it is.
-    if conv.waiting and conv.link.hold:
+    if w.awaiting_rover is not None:
+        leg = " ".join(w.awaiting_rover)[:40]
+        state, tone = f"ROVER DRIVING {leg}  ·  SPACE when it has stopped", C.CHAT_GOOD
+    elif conv.waiting and conv.link.hold:
         state, tone = f"checking whether {S.MODEL} is back...", C.CHAT_SKILL
     elif reel and reel.work:
         (x_, y_), done, total = reel.work
         state, tone = f"working at ({x_},{y_})  ·  {done}/{total} steps", C.CHAT_SKILL
     elif conv.waiting or (reel and reel.busy and conv.busy):
         state, tone = "waiting for the rover...", C.CHAT_SKILL
+    elif reel and reel.busy:
+        state, tone = "the rover is driving...", C.CHAT_SKILL
     elif conv.busy:
         state, tone = ("thinking..." if not conv.say_buf else "answering..."), C.CHAT_GOOD
     elif pilot and pilot.wait:
@@ -618,19 +594,6 @@ def _draw_transcript(surf, conv, w, f, line, focused, scroll, show_thinking=True
     pygame.draw.line(surf, C.CHAT_RULE, (x, head_h - 8), (x + inner, head_h - 8))
     pygame.draw.line(surf, C.CHAT_RULE, (x, H - foot_h), (x + inner, H - foot_h))
 
-    # The scratchpad sits above the transcript and takes at most two fifths of it.
-    if pad is not None and overlay is None:
-        rows_pad = _pad_lines(w, cols, pad)
-        fit = (H - head_h - foot_h) * 2 // 5 // CHAT_LINE_H
-        if len(rows_pad) > fit:
-            rows_pad = rows_pad[:fit - 1] + [("...", C.CHAT_MUTED, True)]
-        for i, (text, colour, indent) in enumerate(rows_pad):
-            font = f.chat if indent else f.chat_head
-            surf.blit(font.render(text, True, colour),
-                      (x + (CHAT_INDENT if indent else 0), head_h + i * CHAT_LINE_H))
-        head_h += len(rows_pad) * CHAT_LINE_H + 6
-        pygame.draw.line(surf, C.CHAT_RULE, (x, head_h - 4), (x + inner, head_h - 4))
-
     body_h = H - head_h - foot_h
     rows = body_h // CHAT_LINE_H
     lines = (_blocks(conv, cols, show_thinking) if overlay is None else
@@ -650,7 +613,7 @@ def _draw_transcript(surf, conv, w, f, line, focused, scroll, show_thinking=True
         surf.blit(f.chat.render("TAB to type", True, C.CHAT_MUTED), (x, y))
     hint = ("V or ESC back to the conversation    wheel scrolls" if overlay is not None
             else "ENTER send    ESC stop typing    /help lists the commands" if focused
-            else "TAB her chat   T terminal   V what she sees   H thinking   P scratchpad   "
+            else "TAB her chat   T terminal   V what she sees   H thinking   P memory   "
                  "O settings")
     for i, part in enumerate(D.key_lines(f.tiny, hint, inner)[:2]):
         surf.blit(f.tiny.render(part, True, C.CHAT_MUTED), (x, H - 34 + i * 16))
@@ -661,15 +624,17 @@ def _draw_transcript(surf, conv, w, f, line, focused, scroll, show_thinking=True
 
 
 def draw_chat(surf, conv, w, f, line, focused, scroll, show_thinking=True, reel=None,
-              overlay=None, pad=None, pilot=None, caret=None):
+              overlay=None, memory=False, pilot=None, caret=None):
+    """The right-hand pane: the dashboard's cards, and her chat under them. `memory`
+    shows her memory and the board in the scratchpad instead of the list."""
     surf.fill(C.VOID)
-    top = D.telemetry(surf, conv, w, f, reel)
+    top = D.telemetry(surf, w, f, reel, memory)
     if focused or overlay is not None:
         top = D.HEADER
     box = pygame.Rect(8, top, surf.get_width() - 20, surf.get_height() - top - 16)
     transcript = surf.subsurface(box)
     result = _draw_transcript(transcript, conv, w, f, line, focused, scroll,
-                              show_thinking, reel, overlay, pad, pilot, caret)
+                              show_thinking, reel, overlay, pilot, caret)
     pygame.draw.rect(surf, C.CHAT_RULE, box, 1, border_radius=8)
     return result
 

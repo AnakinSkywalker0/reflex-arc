@@ -13,10 +13,11 @@ fog.*
 
 The arena is on the left: 10d's ground, rocks with rounded edges, a black grid, the pad, the
 rover, and dust when a storm passes. Under it are buttons for the map, the terminal and the
-settings, the keys, the stopwatch, and the world's last three messages. On the right, four
-cards sit over her chat: the rover's battery, survey, time left and position; the
-scratchpad, with the objectives, the sites she has found and her own list, and her memory in
-a drawer you drag open from its right edge; and what the rover is doing now.
+settings, the keys, the stopwatch, and the world's last three messages. On the right, two
+cards sit over her chat: the rover's battery, survey, time left and position; and the
+scratchpad, with the objectives, the sites she has found and her own list. Its MEMORY arrow,
+or P, flips it to her memory and the board. What she and the rover are doing is the line
+under the model's name.
 
 Every key from 10d still works. A button is the same as its key, and a click on the chat's
 input line is TAB. M opens the map over the whole window. The window opens filling the

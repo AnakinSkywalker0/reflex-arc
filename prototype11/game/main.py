@@ -5,7 +5,7 @@
 
 TAB her chat (/help lists its commands)   T your terminal (help lists its commands)
 C comms on / off   Q end the day now
-V what she sees   H hide/show her reasoning   P show/hide the scratchpad   O settings
+V what she sees   H hide/show her reasoning   P her memory, or her list   O settings
 WASD drive (hold to keep going)   M map   X mark   ESC quit
 SPACE the rover has finished the leg -- with ROVER_PAUSE key
 
@@ -291,7 +291,7 @@ def main():
     next_step = 0
     line, history = "", []
     said, typing, scroll, scroll_max = "", False, 0, 0
-    pad_open = True
+    memory_shown = False    # P: the scratchpad shows her memory and the board, not the list
     picked, editing, notice, models = 0, None, "", None
     # Where the caret sits in the line being typed. Only one line is typed at a time --
     # her chat, the terminal or a setting's value -- so one caret serves all three.
@@ -470,7 +470,7 @@ def main():
                 if asking:
                     render.draw_quit(game, w, fonts, run, mission_over())
                 render.draw_chat(pane, conv, w, fonts, said, typing, scroll,
-                                 S.SHOW_THINKING, reel, None, pad_open, pilot, caret)
+                                 S.SHOW_THINKING, reel, None, memory_shown, pilot, caret)
                 pygame.display.flip()
         finally:
             world.awaiting_rover = None
@@ -629,7 +629,7 @@ def main():
                     (max(960, e.w), max(640, e.h)), pygame.RESIZABLE))
                 continue
             if mode == "world" and not typing:
-                if render.D.memory_event(e, game.get_width()):
+                if render.D.pad_event(e, game.get_width()):
                     continue
             if e.type == pygame.QUIT:
                 mode, typing, held = "quit", False, None
@@ -722,7 +722,7 @@ def main():
                     S.SHOW_THINKING = not S.SHOW_THINKING
                     scroll = 0
                 elif e.key == pygame.K_p:
-                    pad_open = not pad_open
+                    memory_shown = not memory_shown
                 # Sit down at the desk, or leave it. For this run only: the setting on
                 # the settings screen is the one that is saved.
                 elif e.key == pygame.K_c:
@@ -798,7 +798,7 @@ def main():
                                "more, or ESC to finish")
         scroll_max = render.draw_chat(pane, conv, w, fonts, said, typing, scroll,
                                       S.SHOW_THINKING, reel,
-                                      sight.view(w) if mode == "view" else None, pad_open,
+                                      sight.view(w) if mode == "view" else None, memory_shown,
                                       pilot, caret)
         if mode == "map":
             render.draw_map(screen, w, fonts, cursor, reel)

@@ -198,16 +198,16 @@ def test_the_screens_draw():
     conv = chat.Conversation(w)
     pane = pygame.Surface((600, 700))
     ok = True
-    for open_ in (True, False, None):
-        render.draw_chat(pane, conv, w, f, "", False, 0, pad=open_)
-    lines = [t for t, _, _ in render._pad_lines(w, 60, True)]
-    ok &= check("struck items are ticked", any(t.startswith("[x]  1") for t in lines))
-    ok &= check("open ones are not", any(t.startswith("[ ]  2") for t in lines))
-    ok &= check("the memory and the orders are under the list",
-                "MEMORY" in lines and "STANDING ORDERS" in lines)
-    ok &= check("by name and by number", "the C: east of the pad" in lines
-                and "1. finish objective 2" in lines, str(lines))
-    ok &= check("closed, it is one line", len(render._pad_lines(w, 60, False)) == 1)
+    for memory in (False, True):
+        render.draw_chat(pane, conv, w, f, "", False, 0, memory=memory)
+    rows = render.D.list_rows(w)
+    ok &= check("struck items are ticked", ("drive to objective 2", "struck") in rows)
+    ok &= check("open ones are not", ("a long item " * 12, "open") in rows)
+    lines = [t for t, _ in render.D.memory_rows(w, 60)]
+    ok &= check("the memory, then the orders", lines.index("the C: east of the pad")
+                < lines.index("STANDING ORDERS") < lines.index("1. finish objective 2"),
+                str(lines))
+    ok &= check("the list is not in the memory view", "drive to objective 2" not in lines)
     with Sandbox() as sb:
         items = [("preset", k) for k in registry.PRESETS] + \
                 [("setting", s) for s in registry.SETTINGS]

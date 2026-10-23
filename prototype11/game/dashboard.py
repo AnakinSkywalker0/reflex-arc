@@ -12,7 +12,6 @@ AMBER = (190, 177, 148)
 CYAN = (111, 190, 183)
 PANEL = (30, 34, 39)
 BORDER = (53, 60, 67)
-MEMORY_HANDLE_W = 92
 
 
 def text(surf, font, value, pos, color=None, width=None):
@@ -148,7 +147,7 @@ def bottom(surf, w, f, reel):
     left = buttons(surf.get_size())[-1][0].right - 28
     text(surf,f.tiny,'WASD drive   X mark   TAB chat   ESC quit',(28,y+79),C.MUTED,left)
     hint = 'SPACE confirm rover stopped' if w.awaiting_rover is not None else (
-        'SPACE skip animation' if reel and reel.busy else 'Q end day   C comms   H reasoning   P notes')
+        'SPACE skip animation' if reel and reel.busy else 'Q end day   C comms   H reasoning   P memory')
     text(surf,f.tiny,hint,(28,y+96),CYAN,left)
     # The world's last three messages, newest on top and brightest: what the terminal
     # printed, or what X just marked.
@@ -159,7 +158,7 @@ def bottom(surf, w, f, reel):
         text(surf, f.hud, msg, (x, y + 40 + i * 22), shade, rect.right - x - 14)
 
 
-def telemetry(surf, conv, w, f, reel):
+def telemetry(surf, w, f, reel, memory=False):
     width,height = surf.get_size()
     pygame.draw.rect(surf,(21,24,28),(0,0,width,HEADER-8))
     pygame.draw.line(surf,BORDER,(0,HEADER-8),(width-15,HEADER-8))
@@ -199,118 +198,122 @@ def telemetry(surf, conv, w, f, reel):
         text(surf,f.hud,value,(xx,HEADER+57),C.INK,gap-20)
         text(surf,f.tiny,sub,(xx,HEADER+84),C.GOOD,gap-20)
     # At laptop height retain room for the full, scrollable planner below.
-    compact = height < 800
-    objective_h = 104 if compact else 176
-    top=HEADER+123
-    rect=pygame.Rect(x,top,wide,objective_h)
-    objectives=list(w.here.objectives.values())
-    found=[o for o in w.here.interests.values() if o.found]
-    card(surf,rect,'SCRATCHPAD',f,AMBER)
-    rows=[(f'Objective {o.glyph} / {o.priority} / ({o.cell[0]}, {o.cell[1]})',False) for o in objectives]
-    rows += [(f'Examine site ({o.cell[0]}, {o.cell[1]})',False) for o in found]
-    rows += [(t,struck) for t,struck in w.notes.todos]
-    if not rows:
-        text(surf,f.chat,'Explore and survey the terrain',(x+19,top+41),C.INK,wide-35)
-        text(surf,f.tiny,'No objectives posted. T opens mission commands.',(x+19,top+65),C.MUTED,wide-35)
+    objective_h = 104 if height < 800 else 176
+    top = HEADER+123
+    scratchpad(surf, pygame.Rect(x, top, wide, objective_h), w, f, memory)
+    return top + objective_h + 10
+
+
+# Left behind by the last drawing, for main.py: where the scratchpad is, for the wheel,
+# and where its switch is, for a click.
+pad_rect = pygame.Rect(0, 0, 0, 0)
+pad_switch = pygame.Rect(0, 0, 0, 0)
+pad_scroll = 0
+pad_memory = False      # the view drawn last, so a flip starts at the top
+
+
+def list_rows(w):
+    """Today's list: the objectives, the sites she has found, and her own items."""
+    rows = [(f'Objective {o.glyph} / {o.priority} / ({o.cell[0]}, {o.cell[1]})', 'open')
+            for o in w.here.objectives.values()]
+    rows += [(f'Examine site ({o.cell[0]}, {o.cell[1]})', 'struck' if o.done else 'open')
+             for o in w.here.interests.values() if o.found]
+    rows += [(t, 'struck' if struck else 'open') for t, struck in w.notes.todos]
+    return rows or [("nothing on today's list", 'none')]
+
+
+def memory_rows(w, cols):
+    """What lasts past the night: her memory, then the board, wrapped to `cols`."""
+    rows = []
+    for name, value in w.notes.memory.items():
+        for line in f'{name}: {value}'.splitlines():
+            rows += [(piece, 'text') for piece in textwrap.wrap(line, cols) or ['']]
+    if not w.notes.memory:
+        rows.append(('nothing in her memory yet', 'none'))
+    rows.append(('STANDING ORDERS', 'head'))
+    for i, order in enumerate(w.notes.orders, 1):
+        rows += [(piece, 'text') for piece in textwrap.wrap(f'{i}. {order}', cols)]
+    if not w.notes.orders:
+        rows.append(('none posted', 'none'))
+    return rows
+
+
+def switch(surf, rect, f, memory):
+    """The arrow at the card's top right: on to her memory, or back to the list."""
+    label = f.chat_head.render('LIST' if memory else 'MEMORY', True, CYAN)
+    box = pygame.Rect(0, 0, label.get_width() + 26, 22)
+    box.topright = (rect.right - 12, rect.y + 9)
+    pygame.draw.rect(surf, PANEL, box, border_radius=4)
+    pygame.draw.rect(surf, BORDER, box, 1, border_radius=4)
+    cy = box.centery
+    if memory:
+        tip = box.x + 8
+        pygame.draw.polygon(surf, CYAN, [(tip, cy), (tip + 6, cy - 5), (tip + 6, cy + 5)])
+        surf.blit(label, (box.x + 18, cy - label.get_height() // 2))
     else:
-        fit=(objective_h-43)//23
-        for i,(label,checked) in enumerate(rows[:fit]):
-            yy=top+43+i*23
-            pygame.draw.circle(surf,C.GOOD if checked else C.MUTED,(x+23,yy+5),6,1)
+        tip = box.right - 8
+        pygame.draw.polygon(surf, CYAN, [(tip, cy), (tip - 6, cy - 5), (tip - 6, cy + 5)])
+        surf.blit(label, (box.x + 8, cy - label.get_height() // 2))
+    return box
+
+
+def scratchpad(surf, rect, w, f, memory):
+    """One card, two views: today's list, or her memory and the board. The switch at its
+    top right flips them, and so does P. The wheel scrolls whichever is showing."""
+    global pad_rect, pad_switch, pad_scroll, pad_memory
+    card(surf, rect, 'MEMORY AND ORDERS' if memory else 'SCRATCHPAD', f, AMBER)
+    pad_rect, pad_switch = rect, switch(surf, rect, f, memory)
+    if memory != pad_memory:
+        pad_scroll, pad_memory = 0, memory
+    if memory:
+        rows = memory_rows(w, max(10, (rect.w - 40) // f.chat.size('M')[0]))
+    else:
+        rows = list_rows(w)
+    fit = max(1, (rect.h - 43) // 23)
+    pad_scroll = max(0, min(pad_scroll, len(rows) - fit))
+    x = rect.x
+    for i, (label, kind) in enumerate(rows[pad_scroll:pad_scroll + fit]):
+        yy = rect.y + 43 + i * 23
+        if kind == 'head':
+            text(surf, f.tiny, label, (x + 19, yy), C.MUTED, rect.w - 35)
+        elif kind == 'none':
+            text(surf, f.chat, label, (x + 19, yy - 2), C.MUTED, rect.w - 35)
+        elif kind == 'text':
+            text(surf, f.chat, label, (x + 19, yy - 2), C.INK, rect.w - 35)
+        else:
+            checked = kind == 'struck'
+            pygame.draw.circle(surf, C.GOOD if checked else C.MUTED, (x + 23, yy + 5), 6, 1)
             if checked:
-                pygame.draw.lines(surf,C.GOOD,False,[(x+20,yy+5),(x+22,yy+7),(x+26,yy+2)],2)
-            text(surf,f.chat,label,(x+38,yy-2),C.GOOD if checked else C.INK,wide-55)
-        if len(rows)>fit:
-            text(surf,f.tiny,f'+{len(rows)-fit} more / P notes / T mission commands',
-                 (x+19,top+objective_h-16),C.MUTED,wide-35)
-    memory_drawer(surf, rect, w, f)
-    top += objective_h+10
-    rect=pygame.Rect(x,top,wide,73)
-    card(surf,rect,'CURRENT ACTIVITY',f)
-    if w.awaiting_rover is not None:
-        activity=f'Rover driving {" ".join(w.awaiting_rover)[:40]} / SPACE when stopped'
-    elif reel and reel.work:
-        cell,n,total = reel.work
-        activity=f'Working at {cell} / {n}/{total} steps'
-    elif reel and reel.busy:
-        activity='Executing rover route'
-    elif conv.busy:
-        activity='Planner answering' if conv.say_buf else 'Planner thinking'
-    else:
-        activity=f'{w.phase.capitalize()} / awaiting next instruction'
-    text(surf,f.chat,activity,(x+18,top+35),CYAN,wide-35)
-    if reel and reel.work:
-        bar(surf,pygame.Rect(x+18,top+58,wide-36,4),reel.work[1]/max(1,reel.work[2]))
-    top += 83
-    return top
+                pygame.draw.lines(surf, C.GOOD, False,
+                                  [(x + 20, yy + 5), (x + 22, yy + 7), (x + 26, yy + 2)], 2)
+            text(surf, f.chat, label, (x + 38, yy - 2), C.GOOD if checked else C.INK,
+                 rect.w - 55)
+    below = len(rows) - fit - pad_scroll
+    if below > 0:
+        text(surf, f.tiny, f'+{below} more  /  the wheel scrolls',
+             (x + 19, rect.bottom - 16), C.MUTED, rect.w - 35)
+
+
+def pad_event(event, offset):
+    """The wheel over the scratchpad scrolls it. Returns True when it did."""
+    global pad_scroll
+    if event.type != pygame.MOUSEWHEEL:
+        return False
+    mx, my = pygame.mouse.get_pos()
+    if not pad_rect.collidepoint(mx - offset, my):
+        return False
+    pad_scroll = max(0, pad_scroll - event.y)
+    return True
 
 
 def click(pos, game_size, pane_size):
     for rect,label,key in buttons(game_size):
         if rect.collidepoint(pos):
             return key
+    # The scratchpad's switch is P. The pane sits right of the arena, so its rects move.
+    if pad_switch.move(game_size[0], 0).collidepoint(pos):
+        return pygame.K_p
     # Clicking the planner's existing input has the same effect as TAB.
     if pos[0] >= game_size[0]+8 and pos[1] >= pane_size[1]-82:
         return pygame.K_TAB
     return None
-
-
-memory_fraction = 0.0
-memory_dragging = False
-memory_scroll = 0
-memory_rect = pygame.Rect(0, 0, 0, 0)
-memory_handle = pygame.Rect(0, 0, 0, 0)
-memory_max_scroll = 0
-
-
-def memory_event(event, offset):
-    """Drag the handle left to reveal persistent model memory; wheel scrolls it."""
-    global memory_dragging, memory_fraction, memory_scroll
-    pos = pygame.mouse.get_pos() if event.type == pygame.MOUSEWHEEL else getattr(event, 'pos', (0, 0))
-    pos = (pos[0] - offset, pos[1])
-    if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1 and memory_handle.collidepoint(pos):
-        memory_dragging = True
-        return True
-    if event.type == pygame.MOUSEMOTION and memory_dragging:
-        memory_fraction = max(0., min(1., (memory_rect.right - pos[0] - MEMORY_HANDLE_W) / max(1, memory_rect.w - MEMORY_HANDLE_W)))
-        return True
-    if event.type == pygame.MOUSEBUTTONUP and event.button == 1 and memory_dragging:
-        memory_dragging = False
-        return True
-    if event.type == pygame.MOUSEWHEEL and memory_rect.collidepoint(pos) and memory_fraction > 0:
-        memory_scroll = max(0, min(memory_max_scroll, memory_scroll - event.y * 3))
-        return True
-    return False
-
-
-def memory_drawer(surf, rect, w, f):
-    global memory_rect, memory_handle, memory_max_scroll, memory_scroll
-    memory_rect = rect.copy()
-    width = MEMORY_HANDLE_W + round((rect.w - MEMORY_HANDLE_W) * memory_fraction)
-    drawer = pygame.Rect(rect.right - width, rect.y, width, rect.h)
-    pygame.draw.rect(surf, PANEL, drawer, border_radius=7)
-    pygame.draw.rect(surf, BORDER, drawer, 1, border_radius=7)
-    memory_handle = pygame.Rect(drawer.x, drawer.y, MEMORY_HANDLE_W, drawer.h)
-    text(surf, f.tiny, '< MEMORY', (drawer.x + 7, drawer.y + 16), CYAN)
-    text(surf, f.tiny, 'drag', (drawer.x + 20, drawer.y + 36), C.MUTED)
-    pygame.draw.line(surf, CYAN, (drawer.x+4,drawer.centery-10), (drawer.x+4,drawer.centery+10), 3)
-    content = pygame.Rect(drawer.x + MEMORY_HANDLE_W + 8, drawer.y + 12, max(0, width - MEMORY_HANDLE_W - 20), drawer.h - 24)
-    if content.w < 30:
-        return
-    lines = []
-    for name, value in w.notes.memory.items():
-        lines.extend(textwrap.wrap(f'{name}: {value}', max(1, content.w // f.memory.size('M')[0])))
-        lines.append('')
-    if not lines:
-        lines = textwrap.wrap('No saved memories yet.', max(1, content.w // f.memory.size('M')[0]))
-    line_height = f.memory.get_linesize() + 4
-    rows = max(1, content.h // line_height)
-    memory_max_scroll = max(0, len(lines) - rows)
-    memory_scroll = min(memory_scroll, memory_max_scroll)
-    old = surf.get_clip()
-    surf.set_clip(content)
-    for i, line in enumerate(lines[memory_scroll:memory_scroll+rows]):
-        text(surf, f.memory, line, (content.x, content.y+i*line_height), (235, 239, 243))
-    surf.set_clip(old)
-    if memory_max_scroll:
-        bar(surf, pygame.Rect(drawer.right-5, drawer.y+12, 3, drawer.h-24), (memory_scroll+1)/(memory_max_scroll+1))

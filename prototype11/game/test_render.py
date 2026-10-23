@@ -87,6 +87,33 @@ def test_dashboard_buttons_use_existing_controls():
     assert render.D.click((-1, -1), render.game_size(), (544, 634)) is None
 
 
+def test_the_scratchpad_switch_is_p_and_the_wheel_scrolls_it():
+    """The MEMORY arrow flips the card like P does, and a long list scrolls."""
+    import chat
+    from world import World
+    pygame.font.init()
+    w = World()
+    for i in range(12):
+        w.notes.add(f"item {i}")
+    f = render.Fonts()
+    gw = render.game_size()[0]
+    pane = pygame.Surface((S.CHAT_W, render.game_size()[1]))
+    render.draw_chat(pane, chat.Conversation(w), w, f, "", False, 0)
+    centre = render.D.pad_switch.move(gw, 0).center
+    assert render.D.click(centre, render.game_size(), pane.get_size()) == pygame.K_p
+    wheel = pygame.event.Event(pygame.MOUSEWHEEL, x=0, y=-1)
+    real = pygame.mouse.get_pos
+    pygame.mouse.get_pos = lambda: render.D.pad_rect.move(gw, 0).center
+    try:
+        assert render.D.pad_event(wheel, gw), "the wheel over the card should scroll it"
+    finally:
+        pygame.mouse.get_pos = real
+    render.draw_chat(pane, chat.Conversation(w), w, f, "", False, 0)
+    assert render.D.pad_scroll == 1
+    render.draw_chat(pane, chat.Conversation(w), w, f, "", False, 0, memory=True)
+    assert render.D.pad_scroll == 0, "flipping the card starts it at the top"
+
+
 def test_rock_art_and_weather_leave_simulation_rng_untouched():
     import random
     import terrain_art
