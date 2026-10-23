@@ -29,76 +29,83 @@ driven on real hardware. Designed in [`ROVER.md`](ROVER.md).
 
 ## Current plan
 
-*As of 14 October 2026.* Both SIH entries are in and the results will take a while. Until they
-arrive, the work is making the project better, not the pitch.
+*As of 23 October 2026.* Two prototypes were built off `main`, and both come back to it before
+anything new starts. Each step below gets its own conversation. Prototype numbers carry no plan:
+a new prototype takes the next free number.
 
-**The rover has changed.** It now carries a 360° camera, which mimics the simulation's sight, and
-a LiDAR. The LiDAR knows where fixed things are, which in testing means the room's four walls, and
-tracks the rover's position from them well. That is how wheel slip gets caught. The LiDAR reports
-where the rover actually is, and the model replans from there. Errors are still reported, not
-corrected. The overhead camera in [`ARCHITECTURE.md`](ARCHITECTURE.md) is superseded.
+The rover carries a 360° camera, which mimics the simulation's sight, and a LiDAR. The LiDAR
+knows where fixed things are, which in testing means the room's four walls, and tracks the
+rover's position from them. That is how wheel slip gets caught: the LiDAR reports where the
+rover actually is, and the model replans from there. Errors are still reported, not corrected.
+The overhead camera in [`ARCHITECTURE.md`](ARCHITECTURE.md) is superseded.
 
-1. **Cleanup — done 11 October.**
-   - Prototypes 1–9 are archived in [`archive/`](archive/) and at the git tag `prototypes-1-9`,
-     with their conclusions in [`docs/findings.md`](docs/findings.md).
-   - Prototype 10 is frozen as [`prototype10a/`](prototype10a/), the build the Angaraka recording
-     ran on.
-2. **Prototype 10b, the base — built 11 October; the team is testing it.**
-   [`prototype10b/DESIGN.md`](prototype10b/DESIGN.md) covers:
-   - settings inside the app, each saying whether it applies now, at the next sol or after a
-     relaunch;
-   - the scratchpad on screen;
-   - setup instructions;
-   - resuming a kept run from the next sol.
+**Done:**
+- Prototypes 1–9 are archived in [`archive/`](archive/) and at the git tag `prototypes-1-9`,
+  with their conclusions in [`docs/findings.md`](docs/findings.md). Prototype 10 is frozen as
+  [`prototype10a/`](prototype10a/), the build the Angaraka recording ran on.
+- [`prototype10b/`](prototype10b/) is the base, [`prototype10c/`](prototype10c/) the rover
+  working sols by itself, and [`prototype10d/`](prototype10d/) the sol in four phases. Each one's
+  `DESIGN.md` is its scope.
+- The rover's chassis is built and laser-cut.
 
-   Then the team runs the multi-sol tests. No model has yet played past sol 1, and those runs
-   decide what memory and the scratchpad become. The project team takes UI and UX from 10b.
-3. **Prototype 10c, the rover by itself — built 13 October.**
-   [`prototype10c/DESIGN.md`](prototype10c/DESIGN.md) covers:
-   - a mission clock that runs every sol, with a battery only the pad recharges;
-   - home before dark, or stranded;
-   - mission control at the edges of the sol: a briefing before it, talk after it, her radio
-     from the pad mid-sol at a cost in time, and a one-way urgent message;
-   - her memory as a few named entries she keeps lean, and a numbered board of orders;
-   - a local fallback when the cloud model drops;
-   - a report written from the record.
+**Next:**
+1. **Prototype 11: Harsh's UI and UX overhaul**, merged and integrated. Check against it:
+   - the text-input bug. In 10d, typed text can only grow at the end or lose its last
+     character: holding backspace deletes one character, and the arrow keys can't move
+     inside the line.
+2. **Prototype 12: Koushik's integration of the LiDAR and the rover with the simulation.** His
+   work is final. Check against it:
+   - five levels, of which 1–3 are reported done:
+     1. the keyboard drives the real rover;
+     2. the model drives it with simple commands;
+     3. the model drives it through a whole simulated mission;
+     4. the LiDAR is integrated;
+     5. the LiDAR corrects movement error.
+   - movement error is simulated: she asks for (10,11) and the rover reaches (10,10);
+   - the LiDAR gives discrete values for control and keeps continuous ones for the logs, and
+     how it reads angles;
+   - the rover moves in more than two directions.
+3. **Prototype 13: 11 and 12 merged.** A small step.
+4. **Prototype 14: the simplification.** The code is brought to
+   [`repo_rules.md`](repo_rules.md) §7, so any teammate can explain it line by line.
+5. **The repo goes back to the team for the final hardware:**
+   - the bots and their circuits simulated in software, in a simulator such as Wokwi;
+   - later, sensors: a thermometer, and temperature and humidity sensors. Their readings could
+     become objectives in the simulation.
+6. **Then optimisation:**
+   - her memory and list overflow the context, past 90% of 16k tokens by sol 7 or 8. Try 32k,
+     and hard rules in her prompt for when to do what and what goes in her memory and list;
+   - what other papers tried, such as fine-tuning a small model on a large model's outputs;
+   - prompt engineering, which everyone on the team learns;
+   - the documentation overhaul: plain docs for people, technical or not, and deep docs for
+     developers and AI, with the literature review, the LiDAR's included. Until then
+     `ARCHITECTURE.md`'s camera section, `work_division.md` and `rover_ideas.md` are stale.
 
-   The 13 Oct run's fixes are in it: the night line, the objective leak, the dusk memory.
-4. **Prototype 10d, the sol in four phases — built 14 October.**
-   [`prototype10d/DESIGN.md`](prototype10d/DESIGN.md) covers:
-   - dawn, day, dusk and night, each obvious on screen: talk at dawn and night, the day hers
-     on a wall clock nothing pauses, her report at dusk;
-   - one urgent message by day, and her radio from anywhere at a cost in battery;
-   - `end` as the day, with the caps ending turns by themselves;
-   - interests she has to find, and objectives the desk places on mapped ground, by hand or
-     three at a time.
+**Throughout, Himank tests the whole software.** He finds bugs by reading the run logs with a
+model.
 
-   10d is built for the demonstration, not modelled on a real mission. The team runs it next.
-5. **Prototype 11 — Ishan.** A Martian simulation game, scoped in its own conversation. On the
-   table:
-   - a bigger map, with regions besides Jezero flats that each have their own hazards;
-   - storms that move;
-   - missions that span several sols, with enough objectives that choosing between them matters.
-
-   The LiDAR is enacted, not implemented. Slip is injected, the rover stops short, and the result
-   says so with its own code, distinct from `BLOCKED`. Still being discussed:
-   - **chunks:** 50×50 cells, each a small block, with hazards and objectives taking whole chunks;
-   - **a scripted baseline** to compare decisions against;
-   - **how the view scales.** The grid view costs about 1,200 tokens at 50×50.
-6. **Prototype 12 — hardware integration with the real LiDAR.** Owned by the team, with Koushik.
-   Whether it forks from 10b, 10d or 11 is decided after 11.
-7. **Documentation overhaul — Ishan, after 11 is scoped.** Two levels: plain docs for people,
-   technical or not, and deep docs for developers and AI.
+**The Robothon (October 2026)** is an RC race: one lap, fastest wins. One of our teams builds two
+race bots for it, and the other works on Reflex Arc. Once the rovers and their connections are
+done, the aim is a language model driving the race course on its own, outside the race's rules,
+to see whether one can finish a real course. Not decided: whether the model steers, or sets the
+goals the planner drives to.
 
 **Deferred:**
-- merging Abhishek's `rover-bridge` branch, which Ishan reviews first;
-- Gemini keys in the settings;
-- a test run on Windows.
+- **The simulation game:**
+  - a bigger map, with regions besides the Jezero flats that each have their own hazards;
+  - bigger storms that move;
+  - missions that span several sols, with enough objectives that choosing between them matters;
+  - damage to the rover, with an HP system, where errors are injected and reported.
 
-**Stale until the overhaul:**
-- `ARCHITECTURE.md`'s camera section;
-- `work_division.md`, which is the 4 September allocation;
-- `rover_ideas.md`.
+  Still open there: chunks of 50×50 cells, a scripted baseline to compare decisions against, and
+  how the view scales. The grid view costs about 1,200 tokens at 50×50.
+- RL for the rover's controller.
+- A fallback for when the local model fails too. 10d already falls back from the cloud model to
+  the local one.
+- Gemini keys in the settings, and a test run on Windows.
+
+Krish's `link-bot` and Abhishek's `rover-bridge` and `rover-link` branches are off the plan. The
+branches are kept.
 
 ---
 
@@ -115,7 +122,7 @@ corrected. The overhead camera in [`ARCHITECTURE.md`](ARCHITECTURE.md) is supers
 | [`rover_ideas.md`](rover_ideas.md) | the rover in full — the reasoning, and what was already cut |
 | [`ARCHITECTURE.md`](ARCHITECTURE.md) | how the three layers fit together |
 | [`work_division.md`](work_division.md) | who owns what |
-| [`prototype10d/`](prototype10d/) | the current build — the sol in four phases, interests and objectives |
+| [`prototype10d/`](prototype10d/) | the newest build on main — the sol in four phases, interests and objectives |
 | [`prototype10c/`](prototype10c/) | the rover working sols by itself, with comms modelled on a real mission |
 | [`prototype10b/`](prototype10b/) | the base the team is testing — the simulation, the planner and the seam to the rover |
 | [`prototype10a/`](prototype10a/) | prototype 10 frozen as the Angaraka recording ran it |
