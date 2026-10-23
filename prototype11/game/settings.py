@@ -130,6 +130,8 @@ ONE_CALL_AT_A_TIME = True
 
 MOVE_DELAY_MS = 220     # hold a direction this long before it repeats
 MOVE_REPEAT_MS = 70     # then one step every this long
+TYPE_REPEAT_DELAY_MS = 400  # hold a key this long while typing before it repeats
+TYPE_REPEAT_MS = 35     # then once every this long
 
 # --- the second model, for the probe only ----------------------------------
 # Nothing in the game reads any of this. It lets `probe_map.py --backend gemini` put the

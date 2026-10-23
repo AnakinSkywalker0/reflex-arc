@@ -461,7 +461,16 @@ def _foot(surf, f, box, text):
 CONSOLE_LINES = 14
 
 
-def draw_console(surf, w, f, line, history):
+def _typed(surf, font, prompt, line, caret, pos, cols, colour):
+    """`prompt`, then the line being typed with a bar at the caret. A line longer than
+    `cols` scrolls, so the caret is always in view."""
+    start = max(0, caret - cols)
+    surf.blit(font.render(prompt + line[start:start + cols], True, colour), pos)
+    x = pos[0] + font.size(prompt + line[start:caret])[0]
+    pygame.draw.line(surf, colour, (x, pos[1]), (x, pos[1] + font.get_height() - 2), 2)
+
+
+def draw_console(surf, w, f, line, history, caret=None):
     """The planner's front door. What it prints is what gemma reads, verbatim."""
     box = _panel(surf, f, "CONSOLE", "the same strings the model gets back",
                  CONSOLE_LINES + 1, width=surf.get_width() - 60, line_h=20)
@@ -475,7 +484,8 @@ def draw_console(surf, w, f, line, history):
     y = box.bottom - 46
     pygame.draw.line(surf, C.FAINT, (box.left + 24, y - 6), (box.right - 24, y - 6))
     cols = max(8, (box.width - 48) // f.hud.size("M")[0] - 3)
-    surf.blit(f.hud.render(f"> {line[-cols:]}_", True, C.INK), (box.left + 24, y))
+    _typed(surf, f.hud, "> ", line, len(line) if caret is None else caret,
+           (box.left + 24, y), cols, C.INK)
     _foot(surf, f, box, "ENTER run    help for commands    T or ESC close")
 
 
@@ -587,7 +597,7 @@ def _pad_lines(w, cols, open_):
 
 
 def _draw_transcript(surf, conv, w, f, line, focused, scroll, show_thinking=True, reel=None,
-              overlay=None, pad=None, pilot=None):
+              overlay=None, pad=None, pilot=None, caret=None):
     """The right-hand pane. Returns how far back it is still possible to scroll.
 
     `overlay` replaces the transcript with a block to read -- V, and the view. It is
@@ -677,8 +687,8 @@ def _draw_transcript(surf, conv, w, f, line, focused, scroll, show_thinking=True
 
     y = H - foot_h + 12
     if focused:
-        shown = line[-(cols - 2):]
-        surf.blit(f.chat.render(f"> {shown}_", True, C.CHAT_TEXT), (x, y))
+        _typed(surf, f.chat, "> ", line, len(line) if caret is None else caret, (x, y),
+               cols - 2, C.CHAT_TEXT)
     else:
         surf.blit(f.chat.render("TAB to type", True, C.CHAT_MUTED), (x, y))
     hint = ("V or ESC back to the conversation    wheel scrolls" if overlay is not None
@@ -694,7 +704,7 @@ def _draw_transcript(surf, conv, w, f, line, focused, scroll, show_thinking=True
 
 
 def draw_chat(surf, conv, w, f, line, focused, scroll, show_thinking=True, reel=None,
-              overlay=None, pad=None, pilot=None):
+              overlay=None, pad=None, pilot=None, caret=None):
     surf.fill(C.VOID)
     top = D.telemetry(surf, conv, w, f, reel)
     if focused or overlay is not None:
@@ -702,7 +712,7 @@ def draw_chat(surf, conv, w, f, line, focused, scroll, show_thinking=True, reel=
     box = pygame.Rect(8, top, surf.get_width() - 20, surf.get_height() - top - 16)
     transcript = surf.subsurface(box)
     result = _draw_transcript(transcript, conv, w, f, line, focused, scroll,
-                              show_thinking, reel, overlay, pad, pilot)
+                              show_thinking, reel, overlay, pad, pilot, caret)
     pygame.draw.rect(surf, C.CHAT_RULE, box, 1, border_radius=8)
     return result
 
@@ -710,7 +720,8 @@ def draw_chat(surf, conv, w, f, line, focused, scroll, show_thinking=True, reel=
 # --- the settings screen ---------------------------------------------------
 # Plain on purpose: the UI team restyles it from `registry`, they do not rebuild it.
 
-def draw_settings(surf, f, items, picked, prefs, editing, notice, models, replaying):
+def draw_settings(surf, f, items, picked, prefs, editing, notice, models, replaying,
+                  caret=None):
     """Every registry setting over the whole window, grouped by when a change lands."""
     surf.fill(C.CHAT_BG)
     W_, H_ = surf.get_size()
@@ -751,7 +762,11 @@ def draw_settings(surf, f, items, picked, prefs, editing, notice, models, replay
         if i == picked:
             pygame.draw.rect(surf, C.FAINT, (x - 8, y - 2, W_ - 2 * x + 16, line_h))
             if editing is not None:
-                text = f"{text.split()[0]:<16} > {editing}_"
+                prompt = f"{text.split()[0]:<16} > "
+                cols = (W_ - 2 * x) // f.hud.size("M")[0] - len(prompt) - 1
+                _typed(surf, f.hud, prompt, editing,
+                       len(editing) if caret is None else caret, (x, y), cols, colour)
+                continue
         surf.blit(f.hud.render(text, True, colour), (x, y))
 
     kind, it = items[picked]

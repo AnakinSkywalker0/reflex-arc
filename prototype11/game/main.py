@@ -74,6 +74,27 @@ DIRS = {pygame.K_w: (0, -1), pygame.K_s: (0, 1), pygame.K_a: (-1, 0), pygame.K_d
         pygame.K_RIGHT: (1, 0)}
 
 
+def edit(text, caret, e):
+    """One key on a line being typed. Returns the line and where the caret is now."""
+    if e.key == pygame.K_BACKSPACE:
+        if caret == 0:
+            return text, 0
+        return text[:caret - 1] + text[caret:], caret - 1
+    if e.key == pygame.K_DELETE:
+        return text[:caret] + text[caret + 1:], caret
+    if e.key == pygame.K_LEFT:
+        return text, max(0, caret - 1)
+    if e.key == pygame.K_RIGHT:
+        return text, min(len(text), caret + 1)
+    if e.key == pygame.K_HOME:
+        return text, 0
+    if e.key == pygame.K_END:
+        return text, len(text)
+    if e.unicode and e.unicode.isprintable():
+        return text[:caret] + e.unicode + text[caret:], caret + len(e.unicode)
+    return text, caret
+
+
 def read_flags(argv, prefs):
     """Puts every setting in force before anything reads one.
 
@@ -279,6 +300,10 @@ def main():
     said, typing, scroll, scroll_max = "", False, 0, 0
     pad_open = True
     picked, editing, notice, models = 0, None, "", None
+    # Where the caret sits in the line being typed. Only one line is typed at a time --
+    # her chat, the terminal or a setting's value -- so one caret serves all three.
+    caret = 0
+    repeating = False
     items = [("preset", label) for label in registry.PRESETS] + \
             [("setting", st) for st in registry.SETTINGS]
 
@@ -452,7 +477,7 @@ def main():
                 if asking:
                     render.draw_quit(game, w, fonts, run, mission_over())
                 render.draw_chat(pane, conv, w, fonts, said, typing, scroll,
-                                 S.SHOW_THINKING, reel, None, pad_open, pilot)
+                                 S.SHOW_THINKING, reel, None, pad_open, pilot, caret)
                 pygame.display.flip()
         finally:
             world.awaiting_rover = None
@@ -545,7 +570,7 @@ def main():
 
     def settings_key(e):
         """One key on the settings screen. Returns False when the screen closes."""
-        nonlocal picked, editing, notice
+        nonlocal picked, editing, notice, caret
         kind, it = items[picked]
         locked = bool(script) and (kind == "preset" or it.tier != "now")
         if editing is not None:
@@ -554,10 +579,8 @@ def main():
             elif e.key == pygame.K_RETURN:
                 notice = change(it, editing)
                 editing = None
-            elif e.key == pygame.K_BACKSPACE:
-                editing = editing[:-1]
-            elif e.unicode and e.unicode.isprintable():
-                editing += e.unicode
+            else:
+                editing, caret = edit(editing, caret, e)
             return True
         if e.key in (pygame.K_ESCAPE, pygame.K_o):
             return False
@@ -576,6 +599,7 @@ def main():
             notice = change(it, it.nudge(prefs.shown(it), d))
         elif kind == "setting" and e.key == pygame.K_RETURN:
             editing = "" if prefs.shown(it) is None else str(prefs.shown(it))
+            caret = len(editing)
         elif kind == "setting" and e.key == pygame.K_r:
             notice = change(it, it.default)
         return True
@@ -594,6 +618,17 @@ def main():
             leave(True)
         dt = clock.tick(C.FPS) / 1000.0
         now = pygame.time.get_ticks()
+
+        # Held keys repeat while a line is being typed, so holding backspace keeps
+        # deleting. Off the rest of the time: WASD has its own repeat, and both at once
+        # would drive two cells for one.
+        wants = typing or mode == "console" or editing is not None
+        if wants != repeating:
+            if wants:
+                pygame.key.set_repeat(S.TYPE_REPEAT_DELAY_MS, S.TYPE_REPEAT_MS)
+            else:
+                pygame.key.set_repeat()
+            repeating = wants
 
         for e in pygame.event.get():
             if e.type == pygame.VIDEORESIZE:
@@ -633,11 +668,9 @@ def main():
                     if text:
                         for note in chat_line(text):
                             conv.write("note", note)
-                        said, scroll = "", 0
-                elif e.key == pygame.K_BACKSPACE:
-                    said = said[:-1]
-                elif e.unicode and e.unicode.isprintable():
-                    said += e.unicode
+                        said, caret, scroll = "", 0, 0
+                else:
+                    said, caret = edit(said, caret, e)
                 continue
 
             # The console eats every key, or WASD would drive instead of typing.
@@ -649,11 +682,9 @@ def main():
                     if line.strip():
                         history.extend(console.run(w, line, desk))
                         del history[:-40]
-                    line = ""
-                elif e.key == pygame.K_BACKSPACE:
-                    line = line[:-1]
-                elif e.unicode and e.unicode.isprintable():
-                    line += e.unicode
+                    line, caret = "", 0
+                else:
+                    line, caret = edit(line, caret, e)
                 continue
 
             if mode == "settings":
@@ -687,13 +718,13 @@ def main():
                 elif e.key == pygame.K_x:
                     w.toggle_mark()
                 elif e.key == pygame.K_t:
-                    mode, held = "console", None
+                    mode, held, caret = "console", None, 0
                 elif e.key == pygame.K_q and w.phase == "day":
                     w.day_over = True
                 # Her chat always opens: what can reach her is the window's to say, and
                 # the commands in it are refused out loud when they cannot.
                 elif e.key == pygame.K_TAB:
-                    typing, held = True, None
+                    typing, held, caret = True, None, len(said)
                 elif e.key == pygame.K_h:
                     S.SHOW_THINKING = not S.SHOW_THINKING
                     scroll = 0
@@ -740,7 +771,7 @@ def main():
 
         render.draw_world(game, w, fonts, reel)
         if mode == "console":
-            render.draw_console(game, w, fonts, line, history)
+            render.draw_console(game, w, fonts, line, history, caret)
         elif mode == "quit":
             render.draw_quit(game, w, fonts, run, mission_over())
 
@@ -775,12 +806,12 @@ def main():
         scroll_max = render.draw_chat(pane, conv, w, fonts, said, typing, scroll,
                                       S.SHOW_THINKING, reel,
                                       sight.view(w) if mode == "view" else None, pad_open,
-                                      pilot)
+                                      pilot, caret)
         if mode == "map":
             render.draw_map(screen, w, fonts, cursor, reel)
         if mode == "settings":
             render.draw_settings(screen, fonts, items, picked, prefs, editing, notice,
-                                 models, bool(script))
+                                 models, bool(script), caret)
         pygame.display.flip()
 
 
