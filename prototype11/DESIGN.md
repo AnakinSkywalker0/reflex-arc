@@ -26,7 +26,7 @@ Everything not listed here is inherited from
 | dawn | reads her memory, the board and the work; sets up today's list | talk, post orders | `/next`, or 60 s of quiet |
 | day | works: drives, does the work, keeps her list | one urgent message; answer her radio | her `end`, the clock, a flat battery, or Q |
 | dusk | brings her memory up to date, then reports as her last words | read | `/next`, or 60 s of quiet |
-| night | answers | talk, post orders | `/next`, or 60 s of quiet |
+| night | answers, and plans the next day's list | talk, post orders | `/next`, or 60 s of quiet |
 
 Looking and writing (`distance`, `count`, `count_cells`, `todo`, `strike`, `remember`,
 `forget`) work in every phase. Driving, work, `radio` and `end` are the day's. A call outside
@@ -35,6 +35,14 @@ dark at night, lit from the east at dawn and from the west at dusk.
 
 `/next <words>` moves on and hands her the words with whatever she is sent next: the day's
 opening, the turn after a radio line closes, the night, or the next dawn.
+
+**Her list runs from one night to the next dusk.** It is cleared as the night begins, so
+dusk can still read the day's list into her memory, and a plan she makes when the desk
+talks with her at night is the list she wakes to. In the 14 Oct team run the desk took an
+order down at night and she planned "explore north, explore east" in answer. Those writes
+were typed rather than made and never ran (below), and had they run, the dawn would have
+wiped them. Her list for sol 2 copied the objectives instead. A run kept at night resumes
+with its list. A replay clears the list from the tape's row for the night beginning.
 
 **Comms on means someone is watching.** Each phase waits for the desk. **Comms off means
 nobody is at the desk.** Every phase moves on by itself as soon as she is quiet, no urgent
@@ -60,6 +68,20 @@ allowances back. She never calls `end` for a cap.
 later is refused, because it was chosen before an outcome it depends on. In the 14 Oct run
 the old rule refused her fourth `todo` at two dawns, and both times it was the item to
 explore.
+
+**A finished list is not a finished day.** All five sols of the two 14 Oct runs ended the
+same way. A result said nothing was left: "Nothing else you know of is left to do", or
+"Nothing is left open on your list". She then drove to the pad and called `end`, with 271
+to 333 of 500 steps unspent. By day those results now say the day is not over, with the
+battery, the time and the fog that are left. Her prompt makes it a rule: keep working until
+the battery is down to the trip home or the clock is nearly out. It also says that anything
+she meets and wants to carry forward must go into her memory, and anything she means to do
+must go on her list.
+
+**A call typed into her words runs as if she had made it.** Every one of them does, each
+read by its own skill's arguments; words have to be quoted, so a sentence is never read as a
+`radio`. The 14 Oct team run typed seven list writes as `todo("...")`, its night's plan
+among them, and none ran or was said to be lost.
 
 **The mission stands whatever the board says.** The day opens with her orders and, with
 whatever battery and time they leave, the standing mission: explore, examine interests,

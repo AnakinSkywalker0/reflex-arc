@@ -183,6 +183,28 @@ def test_the_night_is_written_down():
     return ok
 
 
+def test_a_list_made_at_night_survives_a_resume():
+    """Quit at night and the list she made is tomorrow's, resumed or not. Quit any
+    earlier and it is today's, and goes with the sol -- `played()` is that case."""
+    print("the night's list, resumed")
+    w = played()
+    w.phase = "night"
+    w.evening()
+    w.notes.add("explore north")
+    kept = roundtrip(w)
+    w.next_day()
+    woke = World(carried=kept)
+    diff = [k for k, v in same(w, woke).items() if not v]
+    ok = check("identical, view included", not diff, str(diff))
+    ok &= check("the list made at night came with it",
+                woke.notes.todos == [["explore north", False]], str(woke.notes.todos))
+    older = dict(kept)
+    del older["todos"]
+    ok &= check("a night kept before the list crossed it wakes with none",
+                World(carried=older).notes.todos == [])
+    return ok
+
+
 def _raises(fn):
     try:
         fn()

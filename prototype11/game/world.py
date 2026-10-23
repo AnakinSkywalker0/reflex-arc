@@ -354,8 +354,8 @@ class World:
         self.just_found = []
         # Her own words at each dusk, for the report: [{"sol", "text"}].
         self.reports = []
-        # Her own writing. The list dies at nightfall and the memory does not, which is
-        # the only difference between the two stores; `notes.py` says why.
+        # Her own writing. The list is cleared when dusk ends and the memory never is,
+        # which is the only difference between the two stores; `notes.py` says why.
         self.notes = notes.Notes()
         # Whether last night caught the rover away from the pad. Stranded means no
         # recharge: it wakes where it stopped, on what was left. See `next_day`.
@@ -495,13 +495,20 @@ class World:
         back = nav.home_steps(self, storm=False)
         return back is None or self.battery < back
 
+    def evening(self):
+        """Dusk is over: today's list goes, and what she writes on it from now is
+        tomorrow's. `autopilot` calls it as the night begins."""
+        self.notes.clear_list()
+
     def next_day(self):
         """The night. Everything it has mapped carries over; the message log does not
         -- yesterday's messages are noise once the day is shut.
 
-        Her list goes with them and `notes.memory` does not. That one line is what the
-        write path is for: the conversation, the reasoning and the day's plan are all
-        gone by morning, so the doc is the only thing she can hand herself.
+        The day's list went when dusk ended, and `notes.memory` never goes. That is
+        what the write path is for: the conversation, the reasoning and the day's plan
+        are all gone by morning, so her memory and a list made at night are the only
+        things she can hand herself. A sol that never reached the night -- a test, or
+        one the desk quit -- loses its list here instead.
 
         **Where the night finds the rover decides the morning.** Beside the pad, the
         battery recharges and it wakes there full. Anywhere else it is stranded: no
@@ -509,6 +516,8 @@ class World:
         that is none it is `lost`. That is item 2 -- the journey home was always free,
         and now not making it costs something.
         """
+        if self.phase != "night":
+            self.evening()
         self.history.append(self._sol_record())
         self.stranded = not self.docked
         self.record("day_close", steps=self.steps, seconds=round(self.elapsed, 1),
@@ -526,7 +535,6 @@ class World:
         self.steps = 0
         self.elapsed = 0.0
         self.log.clear()
-        self.notes.new_day()
         self.last_path = ("", [])
         self.last_walk = ("", [])
         self.reel.clear()       # nobody wants to watch yesterday's drive
@@ -549,9 +557,10 @@ class World:
         """What the night keeps, as JSON: enough to wake on the next sol in a new session.
 
         Quitting mid-sol counts the sol as played, and where the rover stands is where
-        the night finds it, so quitting away from the pad strands it. The list, the
-        storm and the step count are not here because the morning resets all three. The
-        battery is, because a stranded morning does not.
+        the night finds it, so quitting away from the pad strands it. The storm and the
+        step count are not here because the morning resets both. The battery is,
+        because a stranded morning does not, and so is the list once dusk has ended:
+        what she put on it at night is tomorrow's.
         """
         a, sv = self.here, self.survey
         cells = lambda cs: sorted([x, y] for x, y in cs)
@@ -567,6 +576,8 @@ class World:
                            "merges": [list(m) for m in sv.merges], "next": sv._next},
                 "memory": [[k, v] for k, v in self.notes.memory.items()],
                 "orders": list(self.notes.orders),
+                "todos": ([[t, struck] for t, struck in self.notes.todos]
+                          if self.phase == "night" else []),
                 "pos": list(self.pos), "stranded": not self.docked,
                 "battery": self.battery, "finished": self.finished,
                 "history": self.history + [self._sol_record()]}
@@ -590,7 +601,7 @@ class World:
         sv.size = {f: n for f, n in c["survey"]["size"]}
         sv.merges = [tuple(m) for m in c["survey"]["merges"]]
         sv._next = c["survey"]["next"]
-        self.notes.load(c["memory"], c["orders"])
+        self.notes.load(c["memory"], c["orders"], c.get("todos", ()))
         # Older nights have neither: those rovers all woke at the pad.
         self.pos = tuple(c.get("pos") or C.SPAWN)
         self.stranded = bool(c.get("stranded", False))

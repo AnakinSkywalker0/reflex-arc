@@ -153,12 +153,16 @@ class Script:
         return apply(world, self.ops.get(day, ()))
 
 
-# What the operator does to the world or the board, which a replay has to do again.
-OPS = ("orders", "order", "retract", "orders_cleared", "placed", "placed_interest")
+# What the operator does to the world or the board, which a replay has to do again --
+# and the night beginning, which clears her list between the last call of dusk and the
+# first of the night.
+OPS = ("orders", "order", "retract", "orders_cleared", "placed", "placed_interest",
+       "phase")
 
 
 def apply(world, rows):
-    """Re-do operator rows against the live world. Returns a line for each.
+    """Re-do operator rows against the live world. Returns a line for each; the night
+    beginning is not the operator's, and says nothing.
 
     Re-applied rather than copied out of the tape: a placement that the guard would refuse
     today must refuse today too, or replay would smuggle in a state the game does not
@@ -167,7 +171,10 @@ def apply(world, rows):
     done, n = [], world.notes
     for r in rows:
         kind = r["kind"]
-        if kind == "orders":
+        if kind == "phase":
+            if r.get("phase") == "night":
+                world.evening()
+        elif kind == "orders":
             n.clear_orders()
             if r.get("text"):
                 n.order(r["text"])

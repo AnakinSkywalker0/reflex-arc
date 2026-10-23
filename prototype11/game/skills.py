@@ -212,11 +212,11 @@ TOOLS = [
     {"type": "function", "function": {
         "name": "todo",
         "description": (
-            "Put one thing you mean to do on today's list, so you do not decide it "
-            "twice. The list is in your view under YOUR LIST FOR TODAY, numbered, and "
-            "it is yours -- it is not the mission's work, which is listed separately "
-            "and crosses itself off when the work is paid for. Costs no steps. The "
-            "whole list is wiped when the sol ends."),
+            "Put one thing you mean to do on your list, so you do not decide it "
+            "twice. The list is in your view, numbered, and it is yours -- it is not "
+            "the mission's work, which is listed separately and crosses itself off "
+            "when the work is paid for. Costs no steps. The whole list is cleared when "
+            "dusk ends, so what you put on it at night is waiting for you at dawn."),
         "parameters": {"type": "object", "properties": {
             "text": {"type": "string", "description":
                      "the item, in one line -- 'drive the fog north-east of R4'"},
@@ -238,9 +238,9 @@ TOOLS = [
     {"type": "function", "function": {
         "name": "remember",
         "description": (
-            "Write one entry of your memory, by name -- the only thing that survives "
-            "tonight. Everything else -- this conversation, your reasoning, today's list -- "
-            "is gone by morning, and the map, the finished work and mission control's "
+            "Write one entry of your memory, by name -- what you carry forward. This "
+            "conversation and your reasoning are gone by morning and today's list is "
+            "cleared when dusk ends; the map, the finished work and mission control's "
             "orders carry themselves, so do not copy those -- but what an interest "
             "turned out to be is kept nowhere else. An entry holds one subject: what "
             "you found, what you judged not worth the trip, a constraint you are "
@@ -282,10 +282,11 @@ TOOLS = [
     {"type": "function", "function": {
         "name": "end",
         "description": (
-            "End the day. Call it when nothing left today is worth the time and the "
-            "rover is beside the pad: the day is over the moment you do, and dusk "
-            "follows. Until then you can drive as long as you like, one call at a "
-            "time, reading the map each time."),
+            "End the day. Call it beside the pad once the battery is down to what the "
+            "trip back needed, or the clock is nearly out -- not because your list or "
+            "the work you know of is done, since charge left tonight is wasted. The day "
+            "is over the moment you do, and dusk follows. Until then you can drive as "
+            "long as you like, one call at a time, reading the map each time."),
         "parameters": {"type": "object", "properties": {
             "why": {"type": "string", "description":
                     "optional: one line on where you have got to"},
@@ -340,33 +341,75 @@ REQUIRED = {t["function"]["name"]: set(t["function"]["parameters"].get("required
 # reads as a call to `end` and quietly gives the turn away.
 _needy = [n for n in NAMES if REQUIRED[n]]
 _free = [n for n in NAMES if not REQUIRED[n]]
+# A needy skill with a digit in its brackets, or a quote straight after the bracket:
+# `todo("Explore north of the pad")` has no digit, and the 14 Oct team run lost seven
+# list writes typed like that without a word said.
 CALL_SHAPED = re.compile("|".join(
-    ([r"\b(?:" + "|".join(_needy) + r")\s*[({]\s*[^)}]*\d"] if _needy else [])
+    ([r"\b(?:" + "|".join(_needy) + r")\s*[({]\s*(?:[^)}]*\d|[\"'])"] if _needy else [])
     + ([r"\b(?:" + "|".join(_free) + r")\s*[({]\s*(?:[)}]|[^)}]*[:=])"] if _free else [])))
 
 
 def looks_like_a_call(text):
-    """Did the model write a call out in words rather than make one?"""
-    return bool(CALL_SHAPED.search(text or ""))
+    """Did the model write a call out in words rather than make one? Anything that reads
+    as a whole call does, whatever its shape."""
+    return bool(CALL_SHAPED.search(text or "")) or bool(written_calls(text))
 
 
-# The same thing again, but parsed rather than merely detected.
-WRITTEN = re.compile(r"\b(" + "|".join(NAMES) + r")\s*[({]([^(){}]*)[)}]")
+# The same thing again, but parsed rather than merely detected: where each typed call
+# opens. Where it closes is `_closes`'s, because the text of a `todo` holds coordinates
+# in brackets of its own.
+OPENS = re.compile(r"\b(" + "|".join(NAMES) + r")\s*[({]")
+
+# Each skill's arguments in the order its schema lists them, which is the order a call
+# typed without keywords gives them in. Reading every one as goto's x, y and why meant a
+# typed `todo`, `strike` or `remember` could never be recovered.
+ORDER = {t["function"]["name"]: list(t["function"]["parameters"]["properties"])
+         for t in TOOLS}
+TYPES = {t["function"]["name"]: {k: v["type"] for k, v in
+                                 t["function"]["parameters"]["properties"].items()}
+         for t in TOOLS}
+
+
+def _quote_opens(text, i):
+    """Whether the quote at `i` starts a value rather than sitting in a word: the
+    apostrophe in `why:the rover's path` must not swallow the rest of the call."""
+    before = text[:i].rstrip()
+    return not before or before[-1] in "({,=:"
+
+
+def _closes(text, start):
+    """Where the bracket just before `start` closes, skipping brackets inside quotes and
+    nested ones. None if it never does."""
+    depth, quote = 0, ""
+    for i in range(start, len(text)):
+        ch = text[i]
+        if quote:
+            quote = "" if ch == quote else quote
+        elif ch in "\"'" and _quote_opens(text, i):
+            quote = ch
+        elif ch in "({":
+            depth += 1
+        elif ch in ")}":
+            if not depth:
+                return i
+            depth -= 1
+    return None
 
 
 def _fields(inside):
     """Split `35, 25, "why, with a comma"` on the commas that separate arguments."""
-    out, cur, quote = [], "", ""
-    for ch in inside:
+    out, cur, quote, depth = [], "", "", 0
+    for i, ch in enumerate(inside):
         if quote:
             cur += ch
             quote = "" if ch == quote else quote
-        elif ch in "\"'":
+        elif ch in "\"'" and _quote_opens(inside, i):
             quote, cur = ch, cur + ch
-        elif ch == ",":
+        elif ch == "," and not depth:
             out.append(cur)
             cur = ""
         else:
+            depth += (ch in "({") - (ch in ")}")
             cur += ch
     out.append(cur)
     return [f.strip() for f in out if f.strip()]
@@ -378,10 +421,20 @@ def _unquote(v):
 
 
 def written_call(text):
-    """A complete call the model typed instead of making. Returns (name, args) or None.
+    """The first complete call the model typed instead of making: (name, args), or None."""
+    calls = written_calls(text)
+    return calls[0] if calls else None
 
-    This runs it rather than refusing it. About 7 turns in 10 emit a real tool call and
-    the rest type it out, and neither the prompt nor the sampler moves that number.
+
+def written_calls(text):
+    """Every complete call the model typed instead of making, in order, as (name, args).
+
+    All of them, because writes typed together all run together, as made ones do
+    (`chat.Conversation._run`); a typed call after the first that is not a write is
+    refused out loud there, like a made one.
+
+    This runs them rather than refusing them. About 7 turns in 10 emit a real tool call
+    and the rest type it out, and neither the prompt nor the sampler moves that number.
     There is nothing to invent: a written call names the skill and its arguments, so it
     is a decision the model made and Ollama failed to encode.
 
@@ -395,12 +448,21 @@ def written_call(text):
 
     Accepts `goto(35, 25, "why")`, `goto(x=35, y=25, why="...")`, and the brace dialect
     `call:goto{x:35,y:25,why:...}` that `gemma4:31b-cloud` switched to on 2026-09-04.
+    Arguments without a keyword fill the skill's own parameters in its schema's order,
+    so `todo("drive north", "why")` and `strike(2)` read as they were meant.
     """
-    for m in WRITTEN.finditer(text or ""):
+    out, text, at = [], text or "", 0
+    while m := OPENS.search(text, at):
+        end = _closes(text, m.end())
+        if end is None:
+            at = m.end()
+            continue
+        # On past it, so a skill named inside a quoted text is not read as a call too.
+        name, inside, at = m.group(1), text[m.end():end], end + 1
         args, positional = {}, []
         # Blank fields dropped, so `end()` parses to no arguments rather than to one
         # empty positional that then lands in `x`.
-        for field in (f for f in _fields(m.group(2)) if f.strip()):
+        for field in (f for f in _fields(inside) if f.strip()):
             key, eq, val = field.partition("=")
             if not eq:
                 # `x:49` is the brace dialect. `isidentifier` below is what stops a
@@ -409,16 +471,21 @@ def written_call(text):
             if eq and key.strip().isidentifier():
                 args[key.strip()] = _unquote(val)
             else:
-                positional.append(_unquote(field))
-        for key, val in zip(("x", "y", "why"), positional):
-            args.setdefault(key, val)
+                positional.append((_unquote(field), field[:1] in "\"'"))
         # A skill that takes no required argument has no positional form either, so
         # bracketed prose -- "at the end (of the sweep)" -- is text and not a call.
-        if not REQUIRED[m.group(1)] and positional:
+        if not REQUIRED[name] and positional:
             continue
-        if REQUIRED[m.group(1)] <= set(args):
-            return m.group(1), args
-    return None
+        free = [k for k in ORDER[name] if k not in args]
+        # Words go in quotes. "I will radio (if needed)" is a sentence, and reading it
+        # as a call would spend battery and end her turn.
+        if (positional and free and TYPES[name][free[0]] == "string"
+                and not positional[0][1]):
+            continue
+        args.update(zip(free, (v for v, _ in positional)))
+        if REQUIRED[name] <= set(args):
+            out.append((name, args))
+    return out
 
 
 class Call:
@@ -587,6 +654,24 @@ def _work_line(o, short=False):
     return f"an interest at {at}, {o.cost} steps to examine"
 
 
+def _nothing_waiting(world, what):
+    """`what` says the work she knows of, or her list, is all done. By day it goes on
+    to say what the day still holds, as facts.
+
+    All five sols of the two 14 Oct runs ended the same way: "Nothing else you know of
+    is left to do" or "Nothing is left open on your list", then the drive to the pad
+    and `end`, with 271 to 333 of 500 steps of battery unspent and 57 to 122 of the
+    day's 600 seconds used. Read as "you are done", those lines outweighed a prompt
+    that says leftover charge is wasted.
+    """
+    if world.phase != "day" or world.day_over:
+        return f"{what}."
+    a = world.here
+    return (f"{what}, and the day is not over: {world.battery} steps of battery and "
+            f"{world.time_left:.0f} seconds are left, and {a.w * a.h - len(a.seen)} of "
+            f"the {a.w * a.h} cells are still unseen.")
+
+
 def _execute(world):
     """Do the work the rover is beside, and say what it cost -- and, for an interest,
     what it was. That sentence is the only place she is ever told.
@@ -601,8 +686,8 @@ def _execute(world):
     if o is None:
         if not left:
             return ("NOT_BESIDE_ONE -- the rover is not next to any work, so nothing "
-                    "happened and nothing was spent. Nothing you know of is left to do; "
-                    "there may be more under the fog.")
+                    "happened and nothing was spent. "
+                    + _nothing_waiting(world, "No work you know of is waiting"))
         near = ", ".join(_work_line(p) for p in left)
         return (f"NOT_BESIDE_ONE -- the rover is not next to any work, so nothing "
                 f"happened and nothing was spent. Still to do: {near}. Drive to one; "
@@ -622,7 +707,7 @@ def _execute(world):
                 f"the battery ran flat after {spent}. It is not done and those steps are "
                 f"gone. Start it with more in hand.")
     rest = [p for p in left if p is not o]
-    tail = (" Nothing else you know of is left to do; there may be more under the fog."
+    tail = (" " + _nothing_waiting(world, "No other work you know of is waiting")
             if not rest else
             " Still to do: " + ", ".join(_work_line(p, short=True) for p in rest) + ".")
     if o.kind == "objective":
@@ -673,7 +758,7 @@ def _strike(world, i):
     world.record("strike", n=i, text=n.text(i))
     return (f'STRUCK({i}) -- "{n.text(i)}" is crossed off. '
             + (f"{n.open} still open on your list." if n.open else
-               "Nothing is left open on your list."))
+               _nothing_waiting(world, "Nothing is left open on your list")))
 
 
 def _remember(world, name, text):
@@ -690,7 +775,7 @@ def _remember(world, name, text):
     return (f"REMEMBERED({name}, {len(text)} characters) -- "
             + (f"this replaced the {had} characters that were there. " if had is not None
                else f"a new entry: {len(n.memory)} of {S.MEMORY_ENTRIES}. ")
-            + "Your memory is the only thing you will still have tomorrow morning.")
+            + "It will still be in your memory tomorrow morning.")
 
 
 def _forget(world, name):

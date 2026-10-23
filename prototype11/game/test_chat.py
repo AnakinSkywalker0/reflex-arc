@@ -532,6 +532,35 @@ def test_a_call_written_as_text_is_read_and_run():
     return ok
 
 
+def test_a_run_of_typed_writes_all_runs():
+    """Writes made together all run, and typed ones are no different. The 14 Oct team
+    run typed four `todo`s into her first reply of the mission and none of them ran."""
+    print("typed writes, every one")
+    w = World()
+    typed = ("Here is my plan.\n"
+             'todo("Explore north of the pad", "Initial mapping")\n'
+             'todo("Explore east of the pad", "Initial mapping")\n'
+             'remember("plan", "north, then east")')
+    c, _ = rig(w, [(typed, []), ("Planned.", [])])
+    c.open_day(w)
+    c.send("plan your day")
+    c.pump()
+    ok = check("all three ran", [x.name for x in c.calls] == ["todo", "todo", "remember"],
+               str([x.name for x in c.calls]))
+    ok &= check("onto the list, in order",
+                w.notes.todos == [["Explore north of the pad", False],
+                                  ["Explore east of the pad", False]], str(w.notes.todos))
+    ok &= check("and into her memory", w.notes.memory.get("plan") == "north, then east")
+    ok &= check("each one counted", c.recovered == 3, f"recovered={c.recovered}")
+    ok &= check("and said out loud",
+                any(who == "error" and "3 calls were typed out" in t for who, t in c.lines))
+    asked = sum(len(m["tool_calls"]) for m in c.messages if m.get("tool_calls"))
+    answered = sum(1 for m in c.messages if m["role"] == "tool")
+    ok &= check("every call has its answer", asked == answered == 3,
+                f"{asked} asked, {answered} answered")
+    return ok
+
+
 def test_an_incomplete_call_is_refused_rather_than_guessed_at():
     print("...but only a complete one")
     import skills
@@ -868,6 +897,7 @@ if __name__ == "__main__":
                test_what_each_phase_allows(),
                test_words_on_an_open_line_cost_battery(),
                test_a_call_written_as_text_is_read_and_run(),
+               test_a_run_of_typed_writes_all_runs(),
                test_an_incomplete_call_is_refused_rather_than_guessed_at(),
                test_ordinary_prose_is_left_alone(),
                test_a_fabricated_view_never_reaches_the_context(),

@@ -2,15 +2,16 @@
 
     orders    mission control's numbered board, posted and retracted one at a time from
               her chat between sols. She cannot write it
-    todos     her own items, added and struck. Wiped by `World.next_day`.
+    todos     her own items, added and struck. Cleared when dusk ends, by
+              `World.evening`, so what she writes at night is the next day's list.
     memory    her named entries, each written or replaced whole, or forgotten. Hers, and
               it crosses the night.
 
 **Orders need their own store rather than a corner of an existing one.** `next_day`
-clears the message log and the todos, so anything typed at nightfall is gone by morning
-unless it lives somewhere that survives -- and the only other such place is `memory`,
-which `remember` replaces wholesale. Put orders there and she deletes mission control on
-her next call. So it sits here, written only through `order()`, which no skill reaches.
+clears the message log, so anything typed at nightfall is gone by morning unless it
+lives somewhere that survives. The two that do are hers: she strikes the list, and
+`remember` replaces memory wholesale. Put orders in either and she deletes mission
+control on her next call. So it sits here, written only through `order()`, which no skill reaches.
 
 This is the write path. Everything else in the prototype hands her facts and takes them
 back; nothing she produced used to outlive her own turn, which makes the planner
@@ -48,8 +49,12 @@ class Notes:
         self.memory = {}      # name -> text, in the order first written
         self.orders = []      # the operator's, numbered as listed. Read-only to her
 
-    def new_day(self):
-        """Nightfall. The list goes; the memory and the orders stay.
+    def clear_list(self):
+        """Dusk is over. The list goes; the memory and the orders stay.
+
+        Cleared when dusk ends rather than at dawn, so a plan she makes when the desk
+        talks with her at night is the list she wakes to. In the 14 Oct team run her
+        night's "explore north, explore east" never reached the morning.
 
         Orders last until replaced rather than for a sol, so a run where the operator
         types nothing on sol 3 is one where sol 2's orders still stand -- which is what
@@ -94,10 +99,10 @@ class Notes:
         """The stored name `name` refers to, or None."""
         return next((k for k in self.memory if k.lower() == name.strip().lower()), None)
 
-    def load(self, memory, orders):
+    def load(self, memory, orders, todos=()):
         """A saved night's notes. Nights kept before entries and the board existed held
         one paragraph and one order string, and wake as an entry called "note" and a
-        board of one."""
+        board of one. Nights kept before the list crossed the night have none."""
         if isinstance(memory, str):
             memory = [["note", memory]] if memory.strip() else []
         if isinstance(memory, dict):
@@ -106,6 +111,7 @@ class Notes:
         if isinstance(orders, str):
             orders = [orders] if orders.strip() else []
         self.orders = list(orders)
+        self.todos = [[text, bool(struck)] for text, struck in todos]
 
     @property
     def open(self):

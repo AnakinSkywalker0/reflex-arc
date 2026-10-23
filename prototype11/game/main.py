@@ -17,7 +17,7 @@ rover maps what it drives past, out to `VISION_RADIUS`, and that is the only thi
 lifts fog -- Ingenuity is cut, so a sol of driving is the only way the map fills in.
 
 **Three things are written down, and they differ by who holds the pen.** She keeps a
-list for today that `todo` adds to and `strike` crosses off, wiped at nightfall, and a
+list that `todo` adds to and `strike` crosses off, cleared when dusk ends, and a
 memory of named entries that `remember` writes and `forget` drops, which the night does
 not take. The third is the operator's board, posted to from her chat and read-only to her.
 

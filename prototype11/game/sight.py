@@ -85,6 +85,7 @@ HALLMARKS = ("WHAT YOU CAN SEE RIGHT NOW",
              # Her own writing is rendered by us and so can be forged by her. A list
              # she wrote into a reply would read back as struck items she never struck.
              "YOUR LIST FOR TODAY",
+             "YOUR LIST FOR TOMORROW",
              "YOUR MEMORY",
              # The one she cannot write at all, which makes forging it the worst of the
              # set: an order she issued to herself would read as mission control's.
@@ -339,11 +340,14 @@ def todo_list(w):
     block with no example in it, so the invitation has to be in the words.
     """
     n = w.notes
+    # From the night on, the list is the next day's: it was cleared as dusk ended.
+    title = "YOUR LIST FOR TOMORROW" if w.phase == "night" else "YOUR LIST FOR TODAY"
     if not n.todos:
-        return ['YOUR LIST FOR TODAY -- empty. todo("...") puts something on it and '
-                'strike(n) crosses it off. It is wiped when the sol ends.']
+        return [f'{title} -- empty. todo("...") puts something on it and strike(n) '
+                f'crosses it off. It is cleared when dusk ends, so what you put on it '
+                f'at night is waiting for you at dawn.']
     head = f"{n.open} still open" if n.open else "all crossed off"
-    return [f"YOUR LIST FOR TODAY -- {len(n.todos)} items, {head}."] + [
+    return [f"{title} -- {len(n.todos)} items, {head}."] + [
         f"  {i}. [{'x' if struck else ' '}] {text}"
         for i, (text, struck) in enumerate(n.todos, 1)]
 
@@ -357,10 +361,10 @@ def kept(w):
     """
     mem = w.notes.memory
     if not mem:
-        return ['YOUR MEMORY -- empty. remember(name, text) is the only thing that '
-                'survives tonight; this conversation and the list above do not. The map, '
-                'the finished work and the orders carry themselves; what an interest '
-                'turned out to be does not.']
+        return ['YOUR MEMORY -- empty. remember(name, text) keeps what you want to carry '
+                'forward; this conversation does not survive tonight, and the list below '
+                'is cleared when dusk ends. The map, the finished work and the orders '
+                'carry themselves; what an interest turned out to be does not.']
     out = [f"YOUR MEMORY -- {len(mem)} of {S.MEMORY_ENTRIES} entries, yours to change or "
            f"forget the moment one stops being true."]
     for name, text in mem.items():

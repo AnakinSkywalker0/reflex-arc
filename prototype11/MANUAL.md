@@ -35,11 +35,13 @@ reports.
    the board and the work, and sets up her list. Talk to her and post orders. `/next` begins
    the day, or it begins 60 s after the last thing typed or said.
 2. **Day.** The clock runs for 600 s, and nothing pauses it. She works in turns until she
-   calls `end`, the clock runs out or the battery runs flat. Anything you type in her chat is
-   the one urgent message. When she radios, you answer; `/next` closes the line.
+   calls `end`, the clock runs out or the battery runs flat. She is told to keep working until
+   the battery is down to the trip home or the clock is nearly out. Anything you type in her
+   chat is the one urgent message. When she radios, you answer; `/next` closes the line.
 3. **Dusk.** She brings her memory up to date, then reports in a few lines. You read; `/next`
    or 60 s moves on.
-4. **Night.** Talk to her. `/next` starts the next sol, or 60 s of quiet does.
+4. **Night.** Her list is cleared as the night begins, so what she puts on it now is the
+   next day's. Talk to her. `/next` starts the next sol, or 60 s of quiet does.
 
 The battery recharges overnight only if the rover is beside the pad. If not, it is stranded
 and wakes where it stopped, on whatever charge was left.
@@ -110,7 +112,7 @@ For running the mission and playing by hand. A leading `/` is fine.
 | `execute()` | do the work at the objective or interest she is beside | day | its cost in steps, and the time to do them |
 | `count(kind)` | every rock formation or fog patch, with size and middle | any | nothing |
 | `count_cells(x, y)` | the exact cells of one formation | any | nothing |
-| `todo(text)`, `strike(n)` | add to and cross off today's list | any | nothing |
+| `todo(text)`, `strike(n)` | add to and cross off her list | any | nothing |
 | `remember(name, text)` | write or replace one entry of her memory | any | nothing |
 | `forget(name)` | drop an entry | any | nothing |
 | `radio(text)` | call the desk, from anywhere, with comms on | day | 5 steps, and 5 for each reply on the line |
@@ -124,12 +126,14 @@ the next one starts with both back. One call per reply, except that several writ
 
 | place | who writes it | lifetime |
 |---|---|---|
-| today's list (the scratchpad) | she does, with `todo` and `strike` | wiped every night |
+| her list (the scratchpad) | she does, with `todo` and `strike` | cleared when dusk ends; what she writes at night is the next day's |
 | her memory | she does, with `remember` and `forget`. Up to 10 entries of 300 characters | survives every night |
 | the board | you do, from her chat | until you take an order down |
 | `report.md` | the record, and her dusk reports in her own words | the run |
 
-She is told to keep her memory lean:
+She is told that anything she meets in the sol and wants to carry forward must go into her
+memory, and anything she means to do must go on her list. She is told to keep her memory
+lean:
 - one subject to an entry;
 - change an entry rather than add a near-copy;
 - forget what's no longer true;

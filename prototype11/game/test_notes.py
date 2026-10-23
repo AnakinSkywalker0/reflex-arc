@@ -184,6 +184,30 @@ def test_the_night_takes_the_list_and_leaves_the_memory():
     return ok
 
 
+def test_a_list_made_at_night_is_the_next_days():
+    """The list is cleared when dusk ends, not at dawn. In the 14 Oct team run the desk
+    took an order down at night and she planned "explore north, explore east" in
+    answer; by morning her list was empty and she copied the objectives instead."""
+    print("the night's list wakes with her")
+    w = World()
+    skills.call(w, "todo", {"text": "explore south"})
+    w.phase = "dusk"
+    ok = check("at dusk today's list is still there to read",
+               w.notes.todos == [["explore south", False]])
+    w.phase = "night"
+    w.evening()
+    ok &= check("dusk over, it is cleared", w.notes.todos == [], str(w.notes.todos))
+    skills.call(w, "todo", {"text": "explore north"})
+    ok &= check("and the view calls it tomorrow's",
+                "YOUR LIST FOR TOMORROW -- 1 items" in sight.view(w))
+    w.next_day()
+    ok &= check("what she wrote at night is there at dawn",
+                w.notes.todos == [["explore north", False]], str(w.notes.todos))
+    ok &= check("and the view calls it today's again",
+                "YOUR LIST FOR TODAY -- 1 items" in sight.view(w))
+    return ok
+
+
 def test_a_write_is_a_look_and_never_costs_a_step():
     print("what it costs")
     w = World()
@@ -269,6 +293,7 @@ if __name__ == "__main__":
                test_an_entry_replaces_rather_than_appends(),
                test_the_memory_has_a_cap_and_forget_makes_room(),
                test_the_night_takes_the_list_and_leaves_the_memory(),
+               test_a_list_made_at_night_is_the_next_days(),
                test_a_write_is_a_look_and_never_costs_a_step(),
                test_a_malformed_write_is_loud_and_free(),
                test_both_blocks_are_in_the_view_from_the_first_request()]
