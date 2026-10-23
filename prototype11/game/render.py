@@ -124,10 +124,37 @@ def _grit(x, y):
     return out
 
 
-def _rock_shade(x, y):
-    """Outcrops vary a little, so a boulder field does not read as one flat mass."""
-    h = ((x * 83492791) ^ (y * 29863271)) & 0x7FFFFFFF
-    return (h % 7) - 3
+def _ground(surf, rect, x, y, lit):
+    """Regolith, with the cell's pebbles on it."""
+    pygame.draw.rect(surf, C.REGOLITH if lit else C.REGOLITH_DIM, rect)
+    step = max(2, rect.width // 5)
+    for dx, dy, r, pale in _grit(x, y):
+        col = C.GRIT_LIT if (pale and lit) else C.GRIT
+        pygame.draw.circle(surf, col, (rect.x + dx * step, rect.y + dy * step), r)
+
+
+def _rock(surf, rect, x, y, art, lit):
+    """A rock cell: bare regolith, and its piece of the rock's rounded shape on top."""
+    pygame.draw.rect(surf, C.REGOLITH if lit else C.REGOLITH_DIM, rect)
+    surf.blit(art, rect, (x * rect.width, y * rect.height, rect.width, rect.height))
+
+
+def _seen_rocks(a, reel):
+    """The rocks the screen may show. A rock still held under fog by the reel doesn't
+    count, or the shape of the one beside it would round off differently."""
+    return frozenset((x, y) for y in range(a.h) for x in range(a.w)
+                     if a.at(x, y) == "#" and a.visible(x, y)
+                     and not (reel and reel.veiled((x, y))))
+
+
+def _grid(surf, a, ox, oy):
+    """A black line round every cell, so a coordinate can be counted off the map."""
+    for x in range(a.w + 1):
+        px = ox + x * C.TILE
+        pygame.draw.line(surf, (0, 0, 0), (px, oy), (px, oy + a.h * C.TILE))
+    for y in range(a.h + 1):
+        py = oy + y * C.TILE
+        pygame.draw.line(surf, (0, 0, 0), (ox, py), (ox + a.w * C.TILE, py))
 
 
 def draw_world(surf, w, f, reel=None):
@@ -144,13 +171,12 @@ def draw_world(surf, w, f, reel=None):
     # A lamp, not vision -- the rover reveals nothing by driving. Fog is drawn from
     # `a.visible` below; this only brightens ground that is already on the map.
     r2 = S.VISION_RADIUS ** 2
-    terrain_lit, terrain_dim = A.arena(a, C.TILE)
+    rock_lit, rock_dim = A.rocks(a.w, a.h, C.TILE, _seen_rocks(a, reel))
 
     lo_x, hi_x = (view.left - ox) // C.TILE - 1, (view.right - ox) // C.TILE + 1
     lo_y, hi_y = (view.top - oy) // C.TILE - 1, (view.bottom - oy) // C.TILE + 1
     surf.set_clip(view)
 
-    step = max(2, C.TILE // 5)
     things = []
     for y in range(max(0, lo_y), min(a.h, hi_y + 1)):
         for x in range(max(0, lo_x), min(a.w, hi_x + 1)):
@@ -162,14 +188,18 @@ def draw_world(surf, w, f, reel=None):
             lit = (x - px) ** 2 + (y - py) ** 2 <= r2
             ch = a.at(x, y)
 
-            surf.blit(terrain_lit if lit else terrain_dim, rect,
-                      (x * C.TILE, y * C.TILE, C.TILE, C.TILE))
-            if ch == "H" or ch in W.GLYPHS or ch == W.INTEREST:
+            if ch == "#":
+                _rock(surf, rect, x, y, rock_lit if lit else rock_dim, lit)
+            elif ch == "H" or ch in W.GLYPHS or ch == W.INTEREST:
                 things.append((rect, ch, lit, (x, y)))
+                pygame.draw.rect(surf, C.REGOLITH if lit else C.REGOLITH_DIM, rect)
+            else:
+                _ground(surf, rect, x, y, lit)
 
             if (x, y) in a.marks:
                 things.append((rect, None, lit, (x, y)))
 
+    _grid(surf, a, ox, oy)
     for rect, ch, lit, cell in things:
         if ch == "H":
             _pad(surf, rect, lit)
@@ -185,8 +215,7 @@ def draw_world(surf, w, f, reel=None):
     if reel:
         _reel(surf, reel, ox, oy)
     _sky(surf, w.phase, view)
-    _rover(surf, ox + px * C.TILE + C.TILE // 2, oy + py * C.TILE + C.TILE // 2,
-           reel.heading if reel else -90)
+    D.rover(surf, ox + px * C.TILE + C.TILE // 2, oy + py * C.TILE + C.TILE // 2)
     surf.set_clip(None)
     _rim(surf, a, ox, oy)
     D.map_overlay(surf, w, f, view, ox, oy, reel)
@@ -207,7 +236,8 @@ def _reel(surf, reel, ox, oy):
     hypothesis died.
     """
     for cell in reel.trail:
-        pygame.draw.rect(surf, C.WALKED, _cell_rect(ox, oy, cell))
+        # Inset a pixel, so the grid line round the cell still shows.
+        pygame.draw.rect(surf, C.WALKED, _cell_rect(ox, oy, cell).inflate(-2, -2))
 
     r = max(2, C.TILE // 4)
     for cell in reel.plan:
@@ -289,11 +319,6 @@ def _pad(surf, rect, lit):
     pygame.draw.rect(surf, C.ROVER_RING, rect.inflate(-rect.width + 4, -rect.height + 4))
 
 
-def _rover(surf, cx, cy, heading=-90):
-    """A dot, and a ring so it never disappears into the lit pale pad beneath it."""
-    D.rover(surf, cx, cy, heading=heading)
-
-
 def _rim(surf, a, ox, oy):
     """The arena has no wall, so it needs an edge you can see.
 
@@ -351,7 +376,7 @@ def draw_map(surf, w, f, cursor, reel=None):
     # a hypothesis -- through fog it crosses rock it could not have known about. The
     # plan is replaced on every replan and the drive is not, so wherever the shading
     # goes somewhere the dots do not, that is where the surprises were.
-    terrain_lit, _ = A.arena(a, cell)
+    rock_lit, _ = A.rocks(a.w, a.h, cell, _seen_rocks(a, reel))
     walk_area, walked = w.last_walk
     walked = set(reel.trail) if reel and reel.busy else (set(walked) if walk_area == a.name else set())
 
@@ -362,16 +387,18 @@ def draw_map(surf, w, f, cursor, reel=None):
                 pygame.draw.rect(surf, C.FOG, r)
                 continue
             ch = a.at(x, y)
-            surf.blit(terrain_lit, r, (x * cell, y * cell, cell, cell))
             if ch == "#":
-                pass
+                _rock(surf, r, x, y, rock_lit, True)
             elif ch == "H":
                 _pad(surf, r, True)
             elif ch in W.GLYPHS:
+                pygame.draw.rect(surf, C.REGOLITH, r)
                 _objective(surf, r, a.objectives[(x, y)].priority, True)
             elif ch == W.INTEREST:
+                pygame.draw.rect(surf, C.REGOLITH, r)
                 _interest(surf, r, a.interests[(x, y)].found, True)
             else:
+                _ground(surf, r, x, y, True)
                 if (x, y) in walked:
                     pygame.draw.circle(surf, C.WALKED, r.center, max(1, cell//8))
             if (x, y) in a.marks:
@@ -391,12 +418,13 @@ def draw_map(surf, w, f, cursor, reel=None):
 
     pos = reel.where(w.pos) if reel else w.pos
     pr = pygame.Rect(ox + pos[0] * cell, oy + pos[1] * cell, cell, cell)
-    D.rover(surf, *pr.center, size=cell, heading=reel.heading if reel else -90)
+    D.rover(surf, *pr.center, size=cell)
 
     cr = pygame.Rect(ox + cursor[0] * cell, oy + cursor[1] * cell, cell, cell)
     pygame.draw.rect(surf, C.MARK, cr.inflate(2, 2), 2)
-    D.map_telemetry(surf, w, f, pygame.Rect(ox, oy, a.w*cell, a.h*cell),
-                    ox, oy, cell, reel)
+    if S.MAP_LABELS:
+        D.map_telemetry(surf, w, f, pygame.Rect(ox, oy, a.w*cell, a.h*cell),
+                        ox, oy, cell, reel)
 
     foot = [f"cursor ({cursor[0]}, {cursor[1]})    blue = the plan    "
             "dots = the drive    teal = the pad",

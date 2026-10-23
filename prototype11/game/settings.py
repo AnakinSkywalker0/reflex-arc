@@ -91,6 +91,7 @@ MODEL_TEMP = 0.0
 # addition is not associative. `None` sends no seed. See DESIGN.md's determinism ledger.
 MODEL_SEED = 0
 SHOW_THINKING = True    # whether the pane displays the trace; the tape records it anyway
+MAP_LABELS = False      # the rover's cell and its drive's target, labelled on the map
 
 CHAT_W = 990           # pixel width of the pane, before the screen has a say
 

@@ -3,7 +3,6 @@
 All clickable controls return existing keyboard actions to main.py. Textures are
 coordinate hashes, independent of the simulation's random numbers and terrain.
 """
-import math
 import textwrap
 import pygame
 import config as C
@@ -57,7 +56,7 @@ def header(surf, w, f):
         text(surf, f.hud, f'SOL {w.day:02d}', (surf.get_width()-110, 20), CYAN)
 
 
-def rover(surf, cx, cy, size=None, heading=-90):
+def rover(surf, cx, cy, size=None):
     unit = max(2, (C.TILE if size is None else size) // 6)
     pygame.draw.circle(surf, (53, 73, 77), (cx,cy), unit*4, 1)
     for dx in (-2, 2):
@@ -70,18 +69,6 @@ def rover(surf, cx, cy, size=None, heading=-90):
     pygame.draw.rect(surf, CYAN, r.inflate(-2,-4), border_radius=1)
     pygame.draw.line(surf, C.INK, (cx+unit,cy-unit), (cx+unit*2,cy-unit*4))
     pygame.draw.circle(surf, CYAN, (cx+unit*2,cy-unit*4), 2)
-    # Independent camera turret: the bright lens and sight rays show its aim.
-    angle = math.radians(heading)
-    def point(forward, side=0):
-        return (round(cx + math.cos(angle)*forward - math.sin(angle)*side),
-                round(cy + math.sin(angle)*forward + math.cos(angle)*side))
-    for side in (-1, 1):
-        pygame.draw.line(surf, CYAN, point(unit*2, side*unit),
-                         point(unit*5, side*unit*2), 1)
-    pygame.draw.circle(surf, PANEL, (cx, cy), unit*2)
-    pygame.draw.polygon(surf, C.INK, [point(-unit,-unit), point(unit*2,-unit),
-                                    point(unit*2,unit), point(-unit,unit)])
-    pygame.draw.line(surf, CYAN, point(unit*2,-unit), point(unit*2,unit), 3)
 
 
 def map_telemetry(surf, w, f, view, ox, oy, tile, reel=None):
@@ -108,38 +95,17 @@ def map_telemetry(surf, w, f, view, ox, oy, tile, reel=None):
 
 
 def map_overlay(surf, w, f, view, ox, oy, reel):
-    # Grid over both surveyed and unknown regions conveys coordinates without
-    # disclosing hidden geology. Labels are only attached to visible objects.
+    # Labels go only on objects that are visible.
     old = surf.get_clip()
     surf.set_clip(view)
-    grid = pygame.Surface(view.size, pygame.SRCALPHA)
-    for x in range(w.here.w+1):
-        px = ox + x*C.TILE - view.x
-        pygame.draw.line(grid, (160,170,174,27), (px,0), (px,view.h))
-    for y in range(w.here.h+1):
-        py = oy + y*C.TILE - view.y
-        pygame.draw.line(grid, (160,170,174,27), (0,py), (view.w,py))
-    surf.blit(grid, view.topleft)
     for cell, obj in w.here.objectives.items():
         if not w.here.visible(*cell) or (reel and reel.veiled(cell)):
             continue
         x, y = ox+cell[0]*C.TILE, oy+cell[1]*C.TILE
         text(surf, f.tiny, f'{obj.glyph} / {obj.priority.upper()}', (x+C.TILE+3,y), AMBER)
-    # Compact compass and map metadata sit inside the map's frame.
-    cx, cy = view.left+38, view.top+43
-    pygame.draw.circle(surf, PANEL, (cx,cy), 27)
-    pygame.draw.circle(surf, BORDER, (cx,cy), 27, 1)
-    pygame.draw.polygon(surf, CYAN, [(cx,cy-13),(cx-5,cy+9),(cx,cy+4)])
-    pygame.draw.polygon(surf, C.INK, [(cx,cy-13),(cx+5,cy+9),(cx,cy+4)])
-    text(surf, f.tiny, 'N', (cx-3,cy-27), C.INK)
-    label = 'JEZERO / SURFACE TELEMETRY' 
-    text(surf, f.tiny, label, (view.left+12,view.bottom-22), C.MUTED)
-    pos = reel.where(w.pos) if reel else w.pos
-    value = f'X {pos[0]:02.0f}  Y {pos[1]:02.0f}'
-    tw = f.tiny.size(value)[0]
-    text(surf, f.tiny, value, (view.right-tw-12,view.bottom-22), CYAN)
-    # Floating coordinates take priority over compass, controls and metadata.
-    map_telemetry(surf, w, f, view, ox, oy, C.TILE, reel)
+    text(surf, f.tiny, 'JEZERO / SURFACE TELEMETRY', (view.left+12,view.bottom-22), C.MUTED)
+    if S.MAP_LABELS:
+        map_telemetry(surf, w, f, view, ox, oy, C.TILE, reel)
     surf.set_clip(old)
     pygame.draw.rect(surf, BORDER, view.inflate(2,2), 1, border_radius=6)
 

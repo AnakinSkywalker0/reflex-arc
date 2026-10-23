@@ -18,7 +18,6 @@ The frame after `block` is the interesting one: the yellow ran through an outcro
 had seen, and it comes back a different shape. That is the fog lying, made visible.
 """
 
-import math
 import settings as S
 
 
@@ -52,6 +51,11 @@ def frames(timeline):
     return out
 
 
+def destination(timeline):
+    """Where a drive is headed: the end of its first plan. A `distance` has none."""
+    return next((d[-1] for k, d in timeline if k == "plan" and d), None)
+
+
 class Reel:
     """One drive at a time, drawn out of `world.reel`.
 
@@ -64,9 +68,7 @@ class Reel:
         self.frames = []
         self.i = 0
         self.wait = 0.0
-        self.heading = -90.0  # screen degrees: north=-90, east=0
-        self.aim = self.heading
-        self.destination = None
+        self.destination = None   # for MAP_LABELS; kept after the drive, to say REACHED
         self._clear()
 
     def _clear(self):
@@ -85,8 +87,6 @@ class Reel:
 
     def tick(self, dt):
         """Advance by `dt` seconds. Call once a frame; it is the only thing driving it."""
-        delta = (self.aim - self.heading + 180) % 360 - 180
-        self.heading += max(-360 * dt, min(360 * dt, delta))
         if self.i >= len(self.frames):
             if not self.world.reel:
                 if self.frames:
@@ -109,22 +109,15 @@ class Reel:
         Nothing is lost: the drive happened the moment the skill was called, and this
         only stops drawing the journey to it.
         """
-        for kind, data, _ in self.frames[self.i:]:
-            if kind != "prune":
-                self._apply(kind, data)
         for timeline in self.world.reel:
-            self._load(timeline)
-            for kind, data, _ in self.frames:
-                if kind != "prune":
-                    self._apply(kind, data)
-        self.heading = self.aim
+            self.destination = destination(timeline)
         self.world.reel.clear()
         self._clear()
 
     def _load(self, timeline):
         self._clear()
         self.frames = frames(timeline)
-        self.destination = next((d[-1] for k, d in timeline if k == "plan" and d), None)
+        self.destination = destination(timeline)
         # Everything this call revealed starts hidden and is handed back as the reel
         # reaches it. Without it the fog is already gone before the rover sets off.
         self.hidden = {c for kind, d in timeline if kind == "step" for c in d[1]}
@@ -134,23 +127,16 @@ class Reel:
             self.at = data
         elif kind == "plan":
             self.plan, self.probe, self.bump = data, [], None
-            if self.at in data:
-                i = data.index(self.at)
-                if i + 1 < len(data):
-                    self._face(data[i + 1])
         elif kind == "probe":
             self.probe = data
         elif kind == "step":
             cell, revealed = data
-            self._face(cell)
             self.at = cell
             self.trail.append(cell)
             self.hidden.difference_update(revealed)
         elif kind == "block":
-            self._face(data)
             self.bump = data
         elif kind == "work":
-            self._face(data[0])
             self.work = data
         elif kind == "prune":
             # One cell off the far end per frame, re-queueing itself until the route
@@ -161,17 +147,6 @@ class Reel:
                 self.frames.insert(self.i + 1, ("prune", None, S.ANIM_PRUNE))
 
     # --- what the renderer asks -----------------------------------------
-    def steer(self, dx, dy):
-        """Aim the camera for a manual move, including attempts into a wall."""
-        self.destination = None
-        x, y = self.world.pos
-        self._face((x + dx, y + dy))
-
-    def _face(self, cell):
-        x, y = self.where(self.world.pos)
-        if cell != (x, y):
-            self.aim = math.degrees(math.atan2(cell[1] - y, cell[0] - x))
-
     @property
     def destination_status(self):
         if self.destination == self.where(self.world.pos):

@@ -32,28 +32,19 @@ class TelemetryTests(unittest.TestCase):
         self.reel.tick(30)
         self.reel.tick(1)
         self.assertEqual(self.reel.destination_status, 'REACHED')
-        self.assertEqual(self.reel.heading % 360, 90)
 
-    def test_camera_turns_smoothly_and_faces_obstacle(self):
+    def test_a_refused_cell_reads_as_blocked(self):
         self.reel._load(self.route)
-        self.reel._apply('at', (2, 2))
-        self.reel._apply('step', ((3, 2), []))
-        self.assertEqual(self.reel.aim, 0)
-        self.reel.tick(0.01)
-        self.assertGreater(self.reel.heading, -90)
-        self.assertLess(self.reel.heading, 0)
         self.reel._apply('at', (3, 2))
         self.reel._apply('block', (3, 1))
-        self.assertEqual(self.reel.aim, -90)
         self.assertEqual(self.reel.destination_status, 'BLOCKED / REPLANNING')
 
-    def test_skip_preserves_final_queued_direction_and_destination(self):
+    def test_skip_keeps_the_last_queued_destination(self):
         self.reel.tick(0.001)
         self.world.reel.append([('start', (3, 3)), ('plan', [(3, 3), (2, 3)]),
                                 ('step', ((2, 3), []))])
         self.world.pos = (2, 3)
         self.reel.skip()
-        self.assertEqual(self.reel.heading, 180)
         self.assertEqual(self.reel.destination, (2, 3))
         self.assertEqual(self.reel.destination_status, 'REACHED')
 
@@ -61,12 +52,6 @@ class TelemetryTests(unittest.TestCase):
         self.reel._load([('start', (3, 3)), ('probe', [(3, 3), (4, 3)])])
         self.assertIsNone(self.reel.destination)
 
-    def test_manual_steering_clears_old_target_and_faces_requested_direction(self):
-        self.reel.skip()
-        self.reel.steer(-1, 0)
-        self.assertEqual(self.reel.aim, 180)
-        self.assertIsNone(self.reel.destination)
-        self.assertEqual(self.world.pos, (3, 3))
 
 
 if __name__ == '__main__':

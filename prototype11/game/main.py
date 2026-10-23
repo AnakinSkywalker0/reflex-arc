@@ -674,7 +674,7 @@ def main():
                     # Taking the wheel cuts the replay short rather than fighting it
                     # for where the rover is drawn.
                     reel.skip()
-                    reel.steer(*DIRS[e.key])
+                    reel.destination = None     # a drive by hand has no target to label
                     w.move(*DIRS[e.key])
                 else:
                     cursor = clamp_cursor(cursor, DIRS[e.key], w.here)
@@ -728,7 +728,7 @@ def main():
             if keys[held]:
                 next_step = now + S.MOVE_REPEAT_MS
                 if mode == "world":
-                    reel.steer(*DIRS[held])
+                    reel.destination = None
                     w.move(*DIRS[held])
                 elif mode == "map":
                     cursor = clamp_cursor(cursor, DIRS[held], w.here)

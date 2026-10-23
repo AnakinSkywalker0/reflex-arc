@@ -130,6 +130,8 @@ SETTINGS = [
     Setting("COMMS_WAIT", "float", "now", "seconds a phase waits after the last thing "
             "typed or said before it moves on by itself", 10.0, 600.0, 10.0,
             replayed=False),
+    Setting("MAP_LABELS", "bool", "now", "labels on the map: the rover's cell, and "
+            "where a drive is headed and whether it got there", replayed=False),
     Setting("ROVER_PAUSE", "choice", "now", "key: press SPACE when the rover has driven "
             "each leg. none: do not wait", choices=("key", "none"), replayed=False),
     # --- the next sol ------------------------------------------------------

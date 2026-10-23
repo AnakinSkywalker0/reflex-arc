@@ -133,25 +133,60 @@ def test_dashboard_buttons_use_existing_controls():
     assert render.D.click((-1, -1), render.game_size(), (544, 634)) is None
 
 
-def test_terrain_art_and_weather_leave_simulation_rng_untouched():
+def test_rock_art_and_weather_leave_simulation_rng_untouched():
     import random
     import terrain_art
-    state = random.getstate()
     from world import World
     area = World().here
     state = random.getstate()
-    rock, dim = terrain_art.arena(area, 12)
-    assert rock.get_size() == (area.w * 12, area.h * 12)
-    assert terrain_art.arena(area, 12)[0] is rock
-    terrain_art.arena(area, 18)  # Opening a differently scaled map must not evict the dashboard.
-    assert terrain_art.arena(area, 12)[0] is rock
-    assert pygame.image.tostring(rock, "RGB") != pygame.image.tostring(dim, "RGB")
     cells = frozenset({(2, 2), (2, 3), (3, 2)})
+    lit, dim = terrain_art.rocks(area.w, area.h, 12, cells)
+    assert lit.get_size() == (area.w * 12, area.h * 12)
+    assert terrain_art.rocks(area.w, area.h, 12, cells)[0] is lit
+    terrain_art.rocks(area.w, area.h, 18, cells)  # the map's size must not evict the arena's
+    assert terrain_art.rocks(area.w, area.h, 12, cells)[0] is lit
+    assert lit.get_at((2 * 12 + 6, 2 * 12 + 6)).a == 255, "the middle of a rock is drawn"
+    assert lit.get_at((10 * 12 + 6, 10 * 12 + 6)).a == 0, "open ground has no rock on it"
+    assert lit.get_at((2 * 12 + 6, 2 * 12 + 6)) != dim.get_at((2 * 12 + 6, 2 * 12 + 6))
     a, b = pygame.Surface((200, 200)), pygame.Surface((200, 200))
     terrain_art.storm(a, cells, 0, 0, 32, time=0)
     terrain_art.storm(b, cells, 0, 0, 32, time=2)
     assert pygame.image.tostring(a, "RGB") != pygame.image.tostring(b, "RGB")
     assert random.getstate() == state, "visual randomness changed the simulation RNG"
+
+
+def test_an_unseen_rock_changes_nothing_on_screen():
+    """The fog leak. A rock in a cell she has not seen must not show in the cell beside
+    it, ground or rock, until she has seen it."""
+    from world import World
+    pygame.font.init()
+    w = World()
+    a = w.here
+    # A cell she can see with unseen ground beside it.
+    seen, hidden = next(((x, y), (x + 1, y)) for y in range(a.h) for x in range(a.w - 1)
+                        if a.visible(x, y) and not a.visible(x + 1, y)
+                        and a.at(x, y) == "." and a.at(x + 1, y) == ".")
+    f = render.Fonts()
+
+    def put(cell, ch):
+        row = a.rows[cell[1]]
+        a.rows[cell[1]] = row[:cell[0]] + ch + row[cell[0] + 1:]
+
+    def picture():
+        surf = pygame.Surface(render.game_size())
+        render.draw_world(surf, w, f)
+        (ox, oy), _ = render.viewport(surf, a, w.pos)
+        r = pygame.Rect(ox + seen[0] * C.TILE, oy + seen[1] * C.TILE, C.TILE, C.TILE)
+        return pygame.image.tostring(surf.subsurface(r), "RGB")
+
+    for ch in (".", "#"):          # the seen cell as ground, then as a rock
+        put(seen, ch)
+        put(hidden, ".")
+        before = picture()
+        put(hidden, "#")
+        assert picture() == before, f"an unseen rock showed beside a seen {ch!r}"
+    put(seen, ".")
+    put(hidden, ".")
 
 
 if __name__ == "__main__":

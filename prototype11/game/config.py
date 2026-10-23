@@ -19,15 +19,15 @@ TILE = 30
 HUD_H = 150
 FPS = 60
 
-# --- palette: reference2 charcoal, mineral grey and muted teal ----------------------------------
+# --- palette: Harsh's charcoal and muted teal, with 10d's rock -------------
 VOID = (15, 17, 20)           # behind everything
 REGOLITH = (124, 70, 49)      # ground you are standing near
 REGOLITH_DIM = (79, 45, 32)   # ...ground you have seen and walked away from
 # Rock must never be as dark as fog. "There is a rock there" and "I have never been
 # there" are the one distinction this prototype is about, and at (30,22,19) against
 # (13,11,11) they were the same black on screen.
-ROCK = (102, 103, 98)        # outcrop, lit
-ROCK_DIM = (67, 69, 65)    # outcrop, remembered
+ROCK = (74, 55, 48)        # outcrop, lit
+ROCK_DIM = (52, 38, 33)    # outcrop, remembered
 FOG = (23, 26, 29)         # never seen. Effectively the void, and nothing else is
 GRIT = (78, 39, 30)       # pebbles, darker than the ground
 GRIT_LIT = (187, 98, 59)   # ...and lighter. Both low-contrast on purpose
