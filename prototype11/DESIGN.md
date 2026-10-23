@@ -16,7 +16,10 @@ applied on top, and changed in review as below.
   the right, the rover's status and one scratchpad over her chat. The scratchpad shows
   today's list, or, flipped by its MEMORY arrow or P, her memory and the board. A button is
   its key. The window fills the desktop at
-  launch and can be resized; `render.layout` sizes the tile and the pane from it.
+  launch and can be resized. `render.layout` sizes the tile from its height, gives the
+  arena only the map's width, and the pane the rest.
+- **A compact strip under the map,** with the buttons, keys, stopwatch and messages, so
+  the map gets a bigger tile.
 - **The map.** 10d's ground and rock colours in Harsh's rounded rock shapes, a black grid,
   his dust storms and his rover. M draws the map over the whole window, her chat included.
 - **No fog leak.** A rock is drawn only inside its own cells, and its shape comes from the

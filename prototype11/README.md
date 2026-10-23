@@ -21,7 +21,8 @@ under the model's name.
 
 Every key from 10d still works. A button is the same as its key, and a click on the chat's
 input line is TAB. M opens the map over the whole window. The window opens filling the
-desktop and can be dragged to any size; the tiles and the pane follow it. Her chat, the
+desktop and can be dragged to any size. The map gets the tallest tile that fits and only
+the width it needs; the pane gets the rest. Her chat, the
 terminal and a setting's value have a caret: left and right move it, Home and End jump, and
 backspace and delete work where it is.
 

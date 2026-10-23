@@ -122,40 +122,49 @@ def map_overlay(surf, w, f, view, ox, oy, reel):
     pygame.draw.rect(surf, BORDER, view.inflate(2,2), 1, border_radius=6)
 
 
+def controls_width(width):
+    """The bottom strip's left part, for the buttons and the keys. Messages get the rest.
+    312 is what the longer line of keys needs, so it never gets cut."""
+    return min(380, max(312, (width - 54) // 2))
+
+
 def buttons(size):
-    """The three buttons, in the left part of the bottom card. The messages get the rest."""
+    """The three buttons, at the bottom strip's top left."""
     width, height = size
-    y = height-C.HUD_H+44
-    available = (width-42) * 55 // 100
-    bw = (available-16)//3
-    return [(pygame.Rect(15+i*(bw+8),y,bw,34), label,key)
+    y = height-C.HUD_H+14
+    bw = (controls_width(width)-16)//3
+    return [(pygame.Rect(27+i*(bw+8),y,bw,28), label,key)
             for i,(label,key) in enumerate((('M  MAP',pygame.K_m),
                 ('T  TERMINAL',pygame.K_t),('O  SETTINGS',pygame.K_o)))]
 
 
 def bottom(surf, w, f, reel):
-    y = surf.get_height()-C.HUD_H+8
-    rect = pygame.Rect(15,y,surf.get_width()-30,C.HUD_H-18)
-    card(surf,rect,'FLIGHT CONTROLS',f,
-         badge=f'ELAPSED {w.elapsed:.0f}s   {S.ANIM_SPEED:g}x ANIMATION')
+    """The strip under the arena: buttons and keys on the left; the stopwatch, and the
+    world's last three messages, on the right."""
+    rect = pygame.Rect(15, surf.get_height()-C.HUD_H+4, surf.get_width()-30, C.HUD_H-10)
+    pygame.draw.rect(surf, PANEL, rect, border_radius=8)
+    pygame.draw.rect(surf, BORDER, rect, 1, border_radius=8)
     for r,label,key in buttons(surf.get_size()):
         hover = pygame.display.get_init() and r.collidepoint(pygame.mouse.get_pos())
         pygame.draw.rect(surf,(48,62,64) if hover else (33,38,43),r,border_radius=5)
         pygame.draw.rect(surf,AMBER if hover else BORDER,r,1,border_radius=5)
         label_s = f.chat_head.render(label,True,AMBER if hover else C.INK)
         surf.blit(label_s,label_s.get_rect(center=r.center))
-    left = buttons(surf.get_size())[-1][0].right - 28
-    text(surf,f.tiny,'WASD drive   X mark   TAB chat   ESC quit',(28,y+79),C.MUTED,left)
+    left = controls_width(surf.get_width())
+    text(surf, f.tiny, 'WASD drive   X mark   TAB chat   ESC quit', (28, rect.y + 48),
+         C.MUTED, left)
     hint = 'SPACE confirm rover stopped' if w.awaiting_rover is not None else (
         'SPACE skip animation' if reel and reel.busy else 'Q end day   C comms   H reasoning   P memory')
-    text(surf,f.tiny,hint,(28,y+96),CYAN,left)
+    text(surf, f.tiny, hint, (28, rect.y + 65), CYAN, left)
+    x = 27 + left + 20
+    clock = f'ELAPSED {w.elapsed:.0f}s   {S.ANIM_SPEED:g}x ANIMATION'
+    text(surf, f.tiny, clock, (rect.right - 12 - f.tiny.size(clock)[0], rect.y + 10), C.MUTED)
     # The world's last three messages, newest on top and brightest: what the terminal
     # printed, or what X just marked.
-    x = left + 44
     for i, (msg, tone) in enumerate(reversed(w.log[-3:])):
         col = {"good": C.GOOD, "bad": C.BAD}.get(tone, C.INK)
         shade = tuple(min(255, int(v * (1 - i * 0.3))) for v in col)
-        text(surf, f.hud, msg, (x, y + 40 + i * 22), shade, rect.right - x - 14)
+        text(surf, f.hud, msg, (x, rect.y + 28 + i * 18), shade, rect.right - x - 12)
 
 
 def telemetry(surf, w, f, reel, memory=False):

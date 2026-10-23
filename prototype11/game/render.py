@@ -15,6 +15,7 @@ import dashboard as D
 import terrain_art as A
 
 MARGIN = 15
+MIN_PANE = 460      # narrower than this and the pane wraps into uselessness
 DISPLAY_SIZE = None
 
 
@@ -26,14 +27,15 @@ def game_size():
 
 
 def layout(width, height):
-    """Every size, from the window's. The pane gets about 38% of the width and the tile
-    is the biggest that fits the arena in the rest. Returns the arena's rect and the
+    """Every size, from the window's. The tile is the biggest that fits the arena's
+    height, as long as the pane keeps MIN_PANE. The arena then takes only the width the
+    map needs, and the pane gets everything else. Returns the arena's rect and the
     pane's. `main` calls it at launch and again on every resize."""
     global DISPLAY_SIZE
-    S.CHAT_W = min(width - 300, max(460, round(width * .38)))
     DISPLAY_SIZE = (width, height)
-    C.TILE = max(3, min((width - S.CHAT_W - MARGIN * 2) // C.VIEW_W,
+    C.TILE = max(3, min((width - MIN_PANE - MARGIN * 2) // C.VIEW_W,
                         (height - C.HUD_H - MARGIN * 2 - D.HEADER) // C.VIEW_H))
+    S.CHAT_W = width - (C.VIEW_W * C.TILE + MARGIN * 2)
     gw, gh = game_size()
     return pygame.Rect(0, 0, gw, gh), pygame.Rect(gw, 0, S.CHAT_W, gh)
 

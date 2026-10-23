@@ -185,7 +185,7 @@ SETTINGS = [
             choices=tuple(C.ARENAS), mod=C),
     # The tile and the pane are not settings: they come off the window's size.
     Setting("HUD_H", "int", "relaunch", "height of the strip under the arena",
-            150, 250, 10, mod=C, replayed=False),
+            96, 250, 2, mod=C, replayed=False),
 ]
 BY_NAME = {s.name: s for s in SETTINGS}
 

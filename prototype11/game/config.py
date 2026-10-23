@@ -16,7 +16,7 @@ Prototype 1 walled its areas and lost 22% of gemma's calls to the border.
 # just starts it scrolling. VIEW_W and VIEW_H are set by `use()` from the arena itself,
 # never written down, so a resize cannot leave the window the wrong shape.
 TILE = 30
-HUD_H = 150
+HUD_H = 96
 FPS = 60
 
 # --- palette: Harsh's charcoal and muted teal, with 10d's rock -------------
